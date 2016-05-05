@@ -54,6 +54,7 @@ PADDING = 0
 FILTER_SIZE = 5
 
 class ToyNet(object):
+
     def __init__(self, sizes):
         self.sizes = sizes
         # initialize a list of filters
@@ -71,32 +72,26 @@ class ToyNet(object):
             self.activations.append(np.empty((output_dim1 * output_dim2)))
 
         print 'shape of input: ', input_neurons.shape
-        print 'shape of output: ', '(', output_dim1, output_dim2, ')'
+        print 'shape of output: ','(', output_dim1,',', output_dim2, ')'
 
         for i in range(DEPTH):
             slide = 0
             k = 0
-            print self.activations[i].shape[0]
-            while k < self.activations[i].shape[0]:  # check for last input element
+            row = 0
+            print self.activations[i].shape[0]    # one dimensional
+            while k < self.activations[i].shape[0]:  # til the output array is filled up -> one dimensional (600)
                 if FILTER_SIZE + slide < input_neurons.shape[0]:
-                    self.activations[i][k] = np.sum(np.dot(input_neurons[slide:FILTER_SIZE + slide,slide:FILTER_SIZE + slide], self.weights[i][0])) + self.biases[i]
+                    self.activations[i][k] = np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i]
+                    slide += STRIDE
                 else:
+                    self.activations[i][k] = np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i]
                     slide = 0
-                    self.activations[i][k] = np.sum(np.dot(input_neurons[slide:FILTER_SIZE + slide,slide:FILTER_SIZE + slide], self.weights[i][0])) + self.biases[i]
-                slide += STRIDE
-
-                # print 'filter: ', i
-                # print 'input matrix: ', input_neurons[slide:FILTER_SIZE + slide,slide:FILTER_SIZE + slide].shape
-                # print 'weight matrix: ', self.weights[i][0].shape
-                # print 'biases: ', self.biases[i].shape
-                
+                    row += STRIDE
                 # if slide
                 k += 1
 
-
             self.activations[i] = self.activations[i].reshape((output_dim1, output_dim2))
-            print self.activations[i].shape
-            print self.activations[0]
+            print self.activations[0]    # two dimensional
 
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
