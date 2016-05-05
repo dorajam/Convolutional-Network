@@ -91,8 +91,47 @@ class ToyNet(object):
                 k += 1
 
             self.activations[i] = self.activations[i].reshape((output_dim1, output_dim2))
-            print self.activations[0]    # two dimensional
+
+class PoolingLayer(object):
+
+    def __init__(self, width_in, height_in, depth, poolsize = (2,2)):
+        '''
+        width_in and height_in are the dimensions of the input image
+        poolsize is treated as a tuple of filter and stride -> it should work with overlapping pooling
+        '''
+        self.width_in = width_in
+        self.height_in = height_in
+        self.depth = depth
+        self.poolsize = poolsize
+        self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1
+        self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
+
+        # initialize empty output matrix
+        self.pool_output = np.empty((self.width_out, self.height_out))
+
+    def pool(self, input_image):
+        row = 0
+        slide = 0
+        k = 0
+        for i in range(self.width_out * self.height_out):
+            if self.poolsize[0] + slide < self.width_in:
+                # print input_image 
+                self.pool_output[row][k] = np.amax(input_image[0][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                slide += self.poolsize[1]
+                k += 1
+            else:
+                self.pool_output[row][k] = np.amax(input_image[0][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                slide = 0
+                row += self.poolsize[1]
+                k = 0
+        print 'im here HELLLOO'
+        print self.pool_output[0]
+
+                
+
 
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
 net.convolve(cat)
+pooling = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], 1) # only implemented for the first depth layer
+pooling.pool(net.activations)
