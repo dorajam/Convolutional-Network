@@ -107,31 +107,34 @@ class PoolingLayer(object):
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
 
         # initialize empty output matrix
-        self.pool_output = np.empty((self.width_out, self.height_out))
+        self.pool_output = np.empty((self.depth, self.width_out, self.height_out))
 
     def pool(self, input_image):
-        row = 0
-        slide = 0
-        k = 0
-        for i in range(self.width_out * self.height_out):
-            if self.poolsize[0] + slide < self.width_in:
-                # print input_image 
-                self.pool_output[row][k] = np.amax(input_image[0][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
-                slide += self.poolsize[1]
-                k += 1
-            else:
-                self.pool_output[row][k] = np.amax(input_image[0][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
-                slide = 0
-                row += self.poolsize[1]
-                k = 0
-        print 'im here HELLLOO'
-        print self.pool_output[0]
+        
+        # for each filter map
+        for j in range(3):
+            row = 0
+            slide = 0
+            k = 0
+            
+            for i in range(self.width_out * self.height_out):
 
-                
+                if self.poolsize[0] + slide < self.width_in:
+                    # pool_output is indexed in a way that wraps around after each row 
+                    self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                    slide += self.poolsize[1]
+                    k += 1
+                else:
+                    self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                    slide = 0
+                    row += self.poolsize[1]
+                    k = 0
+        print self.pool_output    # this is nan sometimes ?!!! 
+
 
 
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
 net.convolve(cat)
-pooling = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], 1) # only implemented for the first depth layer
+pooling = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], len(net.activations)) # only implemented for the first depth layer
 pooling.pool(net.activations)
