@@ -110,8 +110,8 @@ class PoolingLayer(object):
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
 
         # initialize empty output matrix
-        self.pool_output = np.empty((self.depth, self.width_out, self.height_out))
-        self.pool_output = self.pool_output.reshape(self.depth * self.width_out * self.height_out)
+        self.pool_output = np.empty((self.depth * self.width_out * self.height_out))
+        self.max_indeces = np.zeros((self.depth * self.width_out * self.height_out))
         print self.pool_output.shape
 
     def pool(self, input_image):
@@ -122,19 +122,26 @@ class PoolingLayer(object):
             row = 0
             slide = 0
             for i in range(self.width_out * self.height_out):
+                toPool = input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row]
+                
+                self.pool_output[k] = np.amax(toPool)                # calculate the max activation
+                index = zip(*np.where(np.max(toPool) == toPool))           # save the index of the max
+                if len(index) > 1:
+                    index = [index[0]]
+                index = index[0][0]+ row, index[0][1] + slide
+                self.max_indeces[k] = index
 
-                if self.poolsize[0] + slide < self.width_in:
-                    self.pool_output[k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
-                    slide += self.poolsize[1]
-                else:
-                    self.pool_output[k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
-                    # self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                slide += self.poolsize[1]
+
+                if slide >= self.width_in:
                     slide = 0
                     row += self.poolsize[1]
                 k += 1
 
         self.pool_output = self.pool_output.reshape((self.depth, self.width_out, self.height_out))
+        self.max_indeces = self.max_indeces.reshape((self.depth, self.width_out, self.height_out))
         # print 'AFTER RESHPAING:', self.pool_output
+        print self.max_indeces
 
 
 def sigmoid(z):
