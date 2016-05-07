@@ -111,7 +111,7 @@ class PoolingLayer(object):
 
         # initialize empty output matrix
         self.pool_output = np.empty((self.depth * self.width_out * self.height_out))
-        self.max_indeces = np.zeros((self.depth * self.width_out * self.height_out))
+        self.max_indeces = np.empty((self.depth * self.width_out * self.height_out, 2))
         print self.pool_output.shape
 
     def pool(self, input_image):
@@ -123,7 +123,7 @@ class PoolingLayer(object):
             slide = 0
             for i in range(self.width_out * self.height_out):
                 toPool = input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row]
-                
+
                 self.pool_output[k] = np.amax(toPool)                # calculate the max activation
                 index = zip(*np.where(np.max(toPool) == toPool))           # save the index of the max
                 if len(index) > 1:
@@ -139,7 +139,7 @@ class PoolingLayer(object):
                 k += 1
 
         self.pool_output = self.pool_output.reshape((self.depth, self.width_out, self.height_out))
-        self.max_indeces = self.max_indeces.reshape((self.depth, self.width_out, self.height_out))
+        self.max_indeces = self.max_indeces.reshape((self.depth, self.width_out, self.height_out, 2))
         # print 'AFTER RESHPAING:', self.pool_output
         print self.max_indeces
 
