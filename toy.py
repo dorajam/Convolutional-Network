@@ -81,16 +81,19 @@ class ToyNet(object):
             print self.activations[i].shape[0]    # one dimensional
             while k < self.activations[i].shape[0]:  # til the output array is filled up -> one dimensional (600)
                 if FILTER_SIZE + slide < input_neurons.shape[0]:
-                    self.activations[i][k] = np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i]
+                    self.activations[i][k] = sigmoid(np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i])
                     slide += STRIDE
                 else:
-                    self.activations[i][k] = np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i]
+                    self.activations[i][k] = sigmoid(np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i])
                     slide = 0
                     row += STRIDE
                 # if slide
                 k += 1
 
             self.activations[i] = self.activations[i].reshape((output_dim1, output_dim2))
+        # print self.activations[0]
+
+
 
 class PoolingLayer(object):
 
@@ -108,28 +111,37 @@ class PoolingLayer(object):
 
         # initialize empty output matrix
         self.pool_output = np.empty((self.depth, self.width_out, self.height_out))
+        self.pool_output = self.pool_output.reshape(self.depth * self.width_out * self.height_out)
+        print self.pool_output.shape
 
     def pool(self, input_image):
-        
+        k = 0
+
         # for each filter map
-        for j in range(3):
+        for j in range(self.depth):
             row = 0
             slide = 0
-            k = 0
-            
             for i in range(self.width_out * self.height_out):
 
                 if self.poolsize[0] + slide < self.width_in:
-                    # pool_output is indexed in a way that wraps around after each row 
-                    self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                    self.pool_output[k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
                     slide += self.poolsize[1]
-                    k += 1
                 else:
-                    self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                    self.pool_output[k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
+                    # self.pool_output[j][(i+1)%(self.width_out)][k] = np.amax(input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row])
                     slide = 0
                     row += self.poolsize[1]
-                    k = 0
-        print self.pool_output    # this is nan sometimes ?!!! 
+                k += 1
+
+        self.pool_output = self.pool_output.reshape((self.depth, self.width_out, self.height_out))
+        # print 'AFTER RESHPAING:', self.pool_output
+
+
+def sigmoid(z):
+    return 1.0/(1.0 + np.exp(-z))
+
+def sigmoid_prime(z):
+    return sigmoid(z) * (1-sigmoid(z))
 
 
 
