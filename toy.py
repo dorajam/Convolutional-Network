@@ -110,9 +110,9 @@ class PoolingLayer(object):
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
 
         # initialize empty output matrix
-        self.pool_output = np.empty((self.depth * self.width_out * self.height_out))
+        self.output = np.empty((self.depth * self.width_out * self.height_out))
         self.max_indeces = np.empty((self.depth * self.width_out * self.height_out, 2))
-        print self.pool_output.shape
+        print self.output.shape
 
     def pool(self, input_image):
         k = 0
@@ -124,7 +124,7 @@ class PoolingLayer(object):
             for i in range(self.width_out * self.height_out):
                 toPool = input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row]
 
-                self.pool_output[k] = np.amax(toPool)                # calculate the max activation
+                self.output[k] = np.amax(toPool)                # calculate the max activation
                 index = zip(*np.where(np.max(toPool) == toPool))           # save the index of the max
                 if len(index) > 1:
                     index = [index[0]]
@@ -138,10 +138,29 @@ class PoolingLayer(object):
                     row += self.poolsize[1]
                 k += 1
 
-        self.pool_output = self.pool_output.reshape((self.depth, self.width_out, self.height_out))
+        self.output = self.output.reshape((self.depth, self.width_out, self.height_out))
         self.max_indeces = self.max_indeces.reshape((self.depth, self.width_out, self.height_out, 2))
-        # print 'AFTER RESHPAING:', self.pool_output
-        print self.max_indeces
+        # print 'AFTER RESHPAING:', self.output
+        # print self.max_indeces
+
+class FullyConnectedLayer(object):
+
+    def __init__(self, width_in, height_in, depth, width_out, height_out):
+        self.width_in = width_in
+        self.height_in = height_in
+        self.depth = depth
+        self.width_out = width_out
+        self.height_out = height_out
+
+        self.weights = np.random.randn(self.width_in, self.height_in, self.depth, self.width_out, self.height_out)
+        self.biases = np.random.randn(self.width_out, self.height_out)
+
+    def feedforward(self, input_matrix):
+        print self.weights.shape
+        for b,w in zip(self.biases, self.weights):
+            print b.shape,w.shape
+            break 
+
 
 
 def sigmoid(z):
@@ -155,5 +174,7 @@ def sigmoid_prime(z):
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
 net.convolve(cat)
-pooling = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], len(net.activations)) # only implemented for the first depth layer
-pooling.pool(net.activations)
+pool_layer = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], len(net.activations)) # only implemented for the first depth layer
+pool_layer.pool(net.activations)
+fc_layer = FullyConnectedLayer(pool_layer.output.shape[1], pool_layer.output.shape[2], pool_layer.output[0], 10, 1)
+fc_layer.feedforward(pool_layer.output)
