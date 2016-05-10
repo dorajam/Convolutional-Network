@@ -16,8 +16,8 @@ cat = scipy.misc.imresize(im, (a/40,b/40), interp='bilinear', mode=None)
 print cat.shape
 
 # normalize
-cat = 1 - cat/255
-print cat
+cat = 1.0 - cat/255.0
+# print cat[30:40]
 
 # arr = np.zeros((cat2.shape[0], cat2.shape[1]))
 # block_size = 4
@@ -65,34 +65,41 @@ class ToyNet(object):
         self.activations = []
 
     def convolve(self, input_neurons):
-        output_dim1 = (input_neurons.shape[0] - FILTER_SIZE + 2*PADDING)/STRIDE + 1
-        output_dim2 =  (input_neurons.shape[1] - FILTER_SIZE + 2*PADDING)/STRIDE + 1
+        '''
+        Assume input image to be of channel one!
+        '''
+        output_dim1 = (input_neurons.shape[0] - FILTER_SIZE + 2*PADDING)/STRIDE + 1        # num of rows
+        output_dim2 =  (input_neurons.shape[1] - FILTER_SIZE + 2*PADDING)/STRIDE + 1       # num of cols
 
         for i in range(DEPTH):
             self.activations.append(np.empty((output_dim1 * output_dim2)))
 
-        print 'shape of input: ', input_neurons.shape
-        print 'shape of output: ','(', output_dim1,',', output_dim2, ')'
+        print 'shape of input (rows,cols): ', input_neurons.shape
+        print 'shape of output (rows, cols): ','(', output_dim1,',', output_dim2, ')'
 
-        for i in range(DEPTH):
+        for j in range(DEPTH):
             slide = 0
-            k = 0
             row = 0
-            print self.activations[i].shape[0]    # one dimensional
-            while k < self.activations[i].shape[0]:  # til the output array is filled up -> one dimensional (600)
-                if FILTER_SIZE + slide < input_neurons.shape[0]:
-                    self.activations[i][k] = sigmoid(np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i])
-                    slide += STRIDE
-                else:
-                    self.activations[i][k] = sigmoid(np.sum(input_neurons[slide:FILTER_SIZE + slide,row:FILTER_SIZE+row] * self.weights[i][0]) + self.biases[i])
+            print self.activations[j].shape[0]    # one dimensional
+
+            for i in range(self.activations[j].shape[0]):  # loop til the output array is filled up -> one dimensional (600)
+
+                # ACTIVATIONS -> loop through each 2x2 block horizontally
+                # self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
+                slide += STRIDE
+
+                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indeces at the end of each row
                     slide = 0
                     row += STRIDE
-                # if slide
-                k += 1
 
-            self.activations[i] = self.activations[i].reshape((output_dim1, output_dim2))
+                if i > 300:
+                    import pdb; pdb.set_trace()
+                    print input_neurons[0]
+                    print input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide]
+                    break
+
+            self.activations[j] = self.activations[j].reshape((output_dim1, output_dim2))
         # print self.activations[0]
-
 
 
 class PoolingLayer(object):
@@ -122,7 +129,7 @@ class PoolingLayer(object):
             row = 0
             slide = 0
             for i in range(self.width_out * self.height_out):
-                toPool = input_image[j][slide:self.poolsize[0] + slide,row:self.poolsize[0] + row]
+                toPool = input_image[j][row:self.poolsize[0] + row, slide:self.poolsize[0] + slide]
 
                 self.output[k] = np.amax(toPool)                # calculate the max activation
                 index = zip(*np.where(np.max(toPool) == toPool))           # save the index of the max
@@ -133,14 +140,15 @@ class PoolingLayer(object):
 
                 slide += self.poolsize[1]
 
+                # modify this if stride != filter for poolsize 
                 if slide >= self.width_in:
                     slide = 0
                     row += self.poolsize[1]
                 k += 1
 
-        self.output = self.output.reshape((self.depth, self.width_out, self.height_out))
-        self.max_indeces = self.max_indeces.reshape((self.depth, self.width_out, self.height_out, 2))
-        # print 'AFTER RESHPAING:', self.output
+        self.output = self.output.reshape((self.depth, self.height_out, self.width_out))
+        self.max_indeces = self.max_indeces.reshape((self.depth, self.height_out, self.width_out, 2))
+        print 'AFTER RESHPAING:', self.output
         # print self.max_indeces
 
 class FullyConnectedLayer(object):
@@ -174,7 +182,9 @@ def sigmoid_prime(z):
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
 net.convolve(cat)
-pool_layer = PoolingLayer(net.activations[0].shape[0], net.activations[0].shape[1], len(net.activations)) # only implemented for the first depth layer
+
+# TODO: implement for all activations!
+pool_layer = PoolingLayer(net.activations[0].shape[1], net.activations[0].shape[0], len(net.activations)) # only implemented for the first depth layer
 pool_layer.pool(net.activations)
-fc_layer = FullyConnectedLayer(pool_layer.output.shape[1], pool_layer.output.shape[2], pool_layer.output[0], 10, 1)
-fc_layer.feedforward(pool_layer.output)
+# fc_layer = FullyConnectedLayer(pool_layer.output.shape[1], pool_layer.output.shape[0], pool_layer.output[0], 10, 1)
+# fc_layer.feedforward(pool_layer.output)
