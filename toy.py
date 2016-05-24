@@ -85,10 +85,10 @@ class ToyNet(object):
             for i in range(self.activations[j].shape[0]):  # loop til the output array is filled up -> one dimensional (600)
 
                 # ACTIVATIONS -> loop through each 2x2 block horizontally
-                # self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
+                self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
                 slide += STRIDE
 
-                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indeces at the end of each row
+                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indices at the end of each row
                     slide = 0
                     row += STRIDE
 
@@ -115,6 +115,7 @@ class PoolingLayer(object):
         self.poolsize = poolsize
         self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
+        print self.width_out, height_out
 
         # initialize empty output matrix
         self.output = np.empty((self.depth * self.width_out * self.height_out))
