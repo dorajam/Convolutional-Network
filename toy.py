@@ -78,14 +78,14 @@ class ToyNet(object):
 
         print 'shape of input (rows,cols): ', input_neurons.shape
         print 'shape of output (rows, cols): ','(', output_dim1,',', output_dim2, ')'
-        act_length =  self.activations[0].shape[0]
-        print 'shape of unrolled convolution output: ', act_length   # one dimensional
+        act_length1d =  self.activations[0].shape[0]
+        print 'shape of unrolled convolution output: ', act_length1d   # one dimensional
 
         for j in range(DEPTH):
             slide = 0
             row = 0
 
-            for i in range(act_length):  # loop til the output array is filled up -> one dimensional (600)
+            for i in range(act_length1d):  # loop til the output array is filled up -> one dimensional (600)
 
                 # ACTIVATIONS -> loop through each 2x2 block horizontally
                 self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
@@ -101,39 +101,39 @@ class ToyNet(object):
 
 class PoolingLayer(object):
 
-    def __init__(self, width_in, height_in, depth, poolsize = (2,2)):
+    def __init__(self, depth, height_in, width_in, poolsize = (2,2)):
         '''
         width_in and height_in are the dimensions of the input image
         poolsize is treated as a tuple of filter and stride -> it should work with overlapping pooling
         '''
-        self.width_in = width_in
-        self.height_in = height_in
         self.depth = depth
+        self.height_in = height_in
+        self.width_in = width_in
         self.poolsize = poolsize
-        self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1      # num of output neurons
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
-        print 'Pooling shape (row,col): ', self.height_out, self.width_out
+        self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1      # num of output neurons
+        print 'Pooling shape (depth,row,col): ', self.depth, self.height_out, self.width_out
+        self.pool_length1d = self.height_out * self.width_out
 
         # initialize empty output matrix
-        self.output = np.empty((self.depth, self.width_out * self.height_out))
-        self.max_indeces = np.empty((self.depth, self.width_out * self.height_out, 2))
+        self.output = np.empty((self.depth, self.pool_length1d))
+        self.max_indeces = np.empty((self.depth, self.pool_length1d, 2))
 
     def pool(self, input_image):
-        k = 0
         
         # for each filter map
         for j in range(self.depth):
             row = 0
             slide = 0
-            for i in range(self.width_out * self.height_out):
+            for i in range(self.pool_length1d):
                 toPool = input_image[j][row:self.poolsize[0] + row, slide:self.poolsize[0] + slide]
 
-                self.output[j][k] = np.amax(toPool)                # calculate the max activation
+                self.output[j][i] = np.amax(toPool)                # calculate the max activation
                 index = zip(*np.where(np.max(toPool) == toPool))           # save the index of the max
                 if len(index) > 1:
                     index = [index[0]]
                 index = index[0][0]+ row, index[0][1] + slide
-                self.max_indeces[j][k] = index
+                self.max_indeces[j][i] = index
 
                 slide += self.poolsize[1]
 
@@ -141,7 +141,6 @@ class PoolingLayer(object):
                 if slide >= self.width_in:
                     slide = 0
                     row += self.poolsize[1]
-                k += 1
 #                 print 'matrix: ', toPool,'max', self.output[j][k-1]
 #                 print 'index: ', self.max_indeces[j][k-1]
 #                 if k > 10:
@@ -209,19 +208,18 @@ def sigmoid_prime(z):
 net = ToyNet([cat.shape[0]*cat.shape[1]])
 print 'yooooo', net.sizes[0]
 conv_output = net.convolve(cat)
-print type(conv_output)
+
 # this is pretty sweet -> see the image after the convolution
 for i in range(conv_output.shape[0]):
     plt.imsave('cat_conv%s.jpg'%i, conv_output[i])
 
 # TODO: implement for all activations!
-pool_layer = PoolingLayer(12, 12, 1) # only implemented for the first depth layer
-# # pool_layer.pool(test)
+pool_layer = PoolingLayer(conv_output.shape[0], conv_output.shape[1], conv_output.shape[2])
+pool_layer.pool(conv_output)
+for i in range(pool_layer.output.shape[0]):
+    plt.imsave('pool_pic%s.jpg'%i, pool_layer.output[i])
 
-# test = 1 - test /144
-# test = test.reshape((3*12*4,1))
-# fc = FullyConnectedLayer(3,12,4,10,2)
-# fc.feedforward(test)
+
 
 
 
