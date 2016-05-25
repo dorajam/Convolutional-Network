@@ -154,12 +154,11 @@ class PoolingLayer(object):
 
 class FullyConnectedLayer(object):
 
-    def __init__(self, width_in, height_in, depth, width_out, height_out):
+    def __init__(self, width_in, height_in, depth, num_neurons):
         self.width_in = width_in
         self.height_in = height_in
         self.depth = depth
-        self.width_out = width_out
-        self.height_out = height_out
+        self.num_neurons = num_neurons
 
         self.weights = np.random.randn(self.width_in, self.height_in, self.depth, self.width_out, self.height_out)
         self.biases = np.random.randn(self.width_out, self.height_out)
