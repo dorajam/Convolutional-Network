@@ -120,7 +120,6 @@ class PoolingLayer(object):
         self.max_indeces = np.empty((self.depth, self.pool_length1d, 2))
 
     def pool(self, input_image):
-        
         # for each filter map
         for j in range(self.depth):
             row = 0
@@ -181,6 +180,18 @@ class FullyConnectedLayer(object):
         # forwardpass to classification
         self.final_output = classify(self.output, self.num_output, self.num_classes)
         return self.final_output
+
+
+# backpropagation
+##############################################################
+# I. Go from last layer to FC layer
+def backprop_final_to_fc(final_output,z_values,activation, y):
+    delta = (final_ouput - y) * sigmoid_prime(z_values)
+    delta_b = delta
+    delta_w = np.dot(delta, activation.transpose())
+    # delta = np.dot(self.weights[-l+1].transpose(), delta) * sp                  # backprop to calculate error (delta) at layer - 1
+    
+
 
 
 # helper functions
