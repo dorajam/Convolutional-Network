@@ -91,7 +91,7 @@ class ToyNet(object):
                 self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
                 slide += STRIDE
 
-                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indeces at the end of each row
+                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indices at the end of each row
                     slide = 0
                     row += STRIDE
         self.activations = self.activations.reshape((DEPTH, output_dim1, output_dim2))
@@ -117,7 +117,7 @@ class PoolingLayer(object):
 
         # initialize empty output matrix
         self.output = np.empty((self.depth, self.pool_length1d))
-        self.max_indeces = np.empty((self.depth, self.pool_length1d, 2))
+        self.max_indices = np.empty((self.depth, self.pool_length1d, 2))
 
     def pool(self, input_image):
         # for each filter map
@@ -132,7 +132,7 @@ class PoolingLayer(object):
                 if len(index) > 1:
                     index = [index[0]]
                 index = index[0][0]+ row, index[0][1] + slide
-                self.max_indeces[j][i] = index
+                self.max_indices[j][i] = index
 
                 slide += self.poolsize[1]
 
@@ -141,12 +141,13 @@ class PoolingLayer(object):
                     slide = 0
                     row += self.poolsize[1]
 #                 print 'matrix: ', toPool,'max', self.output[j][k-1]
-#                 print 'index: ', self.max_indeces[j][k-1]
+#                 print 'index: ', self.max_indices[j][k-1]
 #                 if k > 10:
 #                     break
 
         self.output = self.output.reshape((self.depth, self.height_out, self.width_out))
-        self.max_indeces = self.max_indeces.reshape((self.depth, self.height_out, self.width_out, 2))
+        self.max_indices = self.max_indices.reshape((self.depth, self.height_out, self.width_out, 2))
+        # print self.max_indices
 #         print 'AFTER RESHPAING:', self.output
 
 
@@ -189,10 +190,45 @@ def backprop_final_to_fc(final_output,z_values,activation, y):
     delta = (final_ouput - y) * sigmoid_prime(z_values)
     delta_b = delta
     delta_w = np.dot(delta, activation.transpose())
-    # delta = np.dot(self.weights[-l+1].transpose(), delta) * sp                  # backprop to calculate error (delta) at layer - 1
+    return delta_b, delta_w, delta
+
+def backprop_fc_to_pool(deltas, weights, fc_input, prev_z_vals):
+    _, _, delta = deltas
+    return calc_gradients(delta, weights, fc_input, prev_z_vals)
+
+def backprop_pool_to_conv(deltas, conv_shape, max_indices):
+    depth, height, width = conv_shape
+    delta_w, delta_b, delta = deltas
+    delta_new = np.zeros((depth, height, width))
+    depth = max_indices.shape[0]
     
+    # shape of delta should be the same as max_indeces
+    if depth != delta.shape[0]:
+        raise Exception('Pooling shape is not aligned with deltas')
+
+    # roll out the delta matrix from pooling layer
+    pool_height, pool_width = delta.shape[1], delta.shape[2]
+    delta = delta.reshape((depth, pool_height * pool_width))
+    # same for the max index matrix
+    max_indices = max_indices.reshape((depth, pool_height * pool_width, 2))
+
+    for d in range(depth):
+        for i in range(max_indices.shape[1]):
+
+            # for row_index, col_index in max_indices:
+            row_index = int(max_indices[d][i][0])
+            col_index = int(max_indices[d][i][1])
+            print row_index, col_index
+            delta_new[d][row_index][col_index] = delta[d][i]
+    print delta_new
 
 
+def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
+    sp = sigmoid_prime(prev_z_vals)
+    delta = np.dot(prev_weights.transpose(), delta) * sp                  # backprop to calculate error (delta) at layer - 1
+    delta_b = delta
+    delta_w = np.dot(delta, prev_activations.transpose())
+    return delta_b, delta_w, delta
 
 # helper functions
 ###############################################################
@@ -202,6 +238,8 @@ def classify(x, num_inputs, num_classes):
     b = np.random.randn(num_classes,1)
     return sigmoid(np.dot(w,x) + b)
 
+
+# LOSS FUNCTIONS
 def cross_entropy(batch_size, output, expected_output):
     return (-1/batch_size) * np.sum(expected_output * np.log(output) + (1 - expected_output) * np.log(1-output))
 
@@ -229,6 +267,12 @@ pool_layer = PoolingLayer(conv_output.shape[0], conv_output.shape[1], conv_outpu
 pool_layer.pool(conv_output)
 for i in range(pool_layer.output.shape[0]):
     plt.imsave('pool_pic%s.jpg'%i, pool_layer.output[i])
+
+# test
+delta = np.ones((pool_layer.output.shape[0], pool_layer.output.shape[1], pool_layer.output.shape[2])) * 0.5 
+deltas = None, None, delta
+print delta.shape, '== ? ', pool_layer.max_indices.shape[0:3]
+backprop_pool_to_conv(deltas, conv_output.shape, pool_layer.max_indices)
 
 
 
