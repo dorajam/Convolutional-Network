@@ -218,10 +218,15 @@ def backprop_pool_to_conv(deltas, conv_shape, max_indices):
             # for row_index, col_index in max_indices:
             row_index = int(max_indices[d][i][0])
             col_index = int(max_indices[d][i][1])
-            print row_index, col_index
             delta_new[d][row_index][col_index] = delta[d][i]
-    print delta_new
 
+    return delta_new
+
+def backprop_from_conv(delta, weights, conv_input, prev_z_vals):
+    delta_b = delta
+    delta_w = np.dot(delta, conv_input.transpose())
+    sp = sigmoid_prime(prev_z_vals)
+    delta = np.dot(weights.transpose, delta) * sp
 
 def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
     sp = sigmoid_prime(prev_z_vals)
