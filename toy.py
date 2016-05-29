@@ -8,17 +8,17 @@ import scipy
 from scipy import ndimage, misc
 import matplotlib.pyplot as plt
 
+'''
 im = scipy.ndimage.imread('cat.jpg', flatten=True)
 print im.shape, type(im)
 a = im.shape[0]
 b= im.shape[1]
 cat = scipy.misc.imresize(im, (a/40,b/40), interp='bilinear', mode=None)
-print cat.shape
 
 # normalize
 cat = 1.0 - cat/255.0
 # print cat[30:40]
-
+'''
 # arr = np.zeros((cat2.shape[0], cat2.shape[1]))
 # block_size = 4
 # res = 0
@@ -43,11 +43,12 @@ cat = 1.0 - cat/255.0
 
 
 ''' RECEPTIVE FIELD - WEIGHTS aka FILTER ->
-initialize filters in a way that corresponds to the depth of the imagine.
-If the input image is of channel 3 (RGB) then your weight vector is n*n*3.
-PARAMETERS you'll need: DEPTH (num of filters), STRIDE (slide filter by), ZERO-PADDING(to control the spatial size of the output volumes). Use (Inputs-FilterSize + 2*Padding)/Stride + 1 to calculate your output volume and to decide your hyperparameters'''
+initialize filters in a way that corresponds to the depth of the image.
+If the input image is of channel 3 (RGB) then each of your weight vector is n*n*3.
+PARAMETERS you'll need: NUM_FILTERS (num of filters), STRIDE (slide filter by), ZERO-PADDING(to control the spatial size of the output volumes). Use (Inputs-FilterSize + 2*Padding)/Stride + 1 to calculate your output volume and to decide your hyperparameters'''
 
 DEPTH = 3
+NUM_FILTERS = 3
 STRIDE = 1
 # to ensure that the input and output volumes are the same: use P=(F-1)/2 given stride 1.
 PADDING = 0
@@ -55,70 +56,76 @@ FILTER_SIZE = 2
 
 class ConvLayer(object):
 
-    def __init__(self, data):
-        # initialize a list of filters
-        self.weights = []
-        for i in range(DEPTH):
-            self.weights.append([np.random.randn(FILTER_SIZE, FILTER_SIZE)])
-        self.biases = np.random.rand(DEPTH,1)
-        self.activations = None
+    def __init__(self, input_shape, filter_size, stride, num_filters, padding = 0):
+        self.depth, self.height_in, self.width_in = input_shape
+        self.filter_size = filter_size
+        self.stride = stride
+        self.padding = padding
+        self.num_filters = num_filters
+
+        self.weights = np.random.randn(self.num_filters, self.filter_size, self.filter_size)
+        self.biases = np.random.rand(self.num_filters,1)
+
+        self.output_dim1 = (self.height_in - self.filter_size + 2*self.padding)/self.stride + 1        # num of rows
+        self.output_dim2 =  (self.width_in - self.filter_size + 2*self.padding)/self.stride + 1         # num of cols
+        
+        self.output = np.zeros((self.num_filters, self.output_dim1, self.output_dim2))
+
+        print 'shape of input (depth, rows,cols): ', input_shape
+        print 'shape of convolutional layer (depth, rows, cols): ', self.output.shape
+
 
     def convolve(self, input_neurons):
         '''
-        Assume input image to be of channel one!
+        Pass in the actual input data and do the convolution.
+        Returns: sigmoid activation matrix after convolution 
         '''
-        output_dim1 = (input_neurons.shape[0] - FILTER_SIZE + 2*PADDING)/STRIDE + 1        # num of rows
-        output_dim2 =  (input_neurons.shape[1] - FILTER_SIZE + 2*PADDING)/STRIDE + 1       # num of cols
 
-        self.activations = np.zeros((DEPTH, output_dim1 * output_dim2))
+        # roll out activations
+        self.output = np.zeros((self.num_filters, self.output_dim1 * self.output_dim2))
+        
+        act_length1d =  self.output.shape[1]
+        print 'shape of each rolled feature map: ', act_length1d   # one dimensional
 
-        # for i in range(DEPTH):
-        #     self.activations.append(np.empty((output_dim1 * output_dim2)))
-
-        print 'shape of input (rows,cols): ', input_neurons.shape
-        print 'shape of output (rows, cols): ','(', output_dim1,',', output_dim2, ')'
-        act_length1d =  self.activations[0].shape[0]
-        print 'shape of unrolled convolution output: ', act_length1d   # one dimensional
-
-        for j in range(DEPTH):
+        for j in range(self.num_filters):
             slide = 0
             row = 0
 
             for i in range(act_length1d):  # loop til the output array is filled up -> one dimensional (600)
 
-                # ACTIVATIONS -> loop through each 2x2 block horizontally
-                self.activations[j][i] = sigmoid(np.sum(input_neurons[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide] * self.weights[j][0]) + self.biases[j])
-                slide += STRIDE
+                # ACTIVATIONS -> loop through each conv block horizontally
+                self.output[j][i] = sigmoid(np.sum(input_neurons[row:self.filter_size+row, slide:self.filter_size + slide] * self.weights[j][0]) + self.biases[j])
+                slide += self.stride
 
-                if (FILTER_SIZE + slide)-STRIDE >= input_neurons.shape[1]:    # wrap indices at the end of each row
+                if (self.filter_size + slide)-self.stride >= self.width_in:    # wrap indices at the end of each row
                     slide = 0
-                    row += STRIDE
-        self.activations = self.activations.reshape((DEPTH, output_dim1, output_dim2))
-        print 'Shape of final conv output: ', self.activations.shape
-        return self.activations
+                    row += self.stride
+
+        self.output = self.output.reshape((self.filter_size, self.output_dim1, self.output_dim2))
+        print 'Shape of final conv output: ', self.output.shape
+        return self.output
 
 
 class PoolingLayer(object):
 
-    def __init__(self, depth, height_in, width_in, poolsize = (2,2)):
+    def __init__(self, shape_of_input, poolsize = (2,2)):
         '''
         width_in and height_in are the dimensions of the input image
         poolsize is treated as a tuple of filter and stride -> it should work with overlapping pooling
         '''
-        self.depth = depth
-        self.height_in = height_in
-        self.width_in = width_in
+        self.depth, self.height_in, self.width_in = shape_of_input
         self.poolsize = poolsize
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
         self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1      # num of output neurons
         print 'Pooling shape (depth,row,col): ', self.depth, self.height_out, self.width_out
-        self.pool_length1d = self.height_out * self.width_out
-
-        # initialize empty output matrix
-        self.output = np.empty((self.depth, self.pool_length1d))
-        self.max_indices = np.empty((self.depth, self.pool_length1d, 2))
 
     def pool(self, input_image):
+
+        self.pool_length1d = self.height_out * self.width_out
+
+        self.output = np.empty((self.depth, self.pool_length1d))
+        self.max_indices = np.empty((self.depth, self.pool_length1d, 2))
+        
         # for each filter map
         for j in range(self.depth):
             row = 0
@@ -154,11 +161,12 @@ class FullyConnectedLayer(object):
     '''
     Calculates outputs on the fully connected layer then forwardpasses to the final output -> classes
     '''
-    def __init__(self, depth, height_in, width_in, num_output, num_classes):
+    def __init__(self, depth, height_in, width_in, num_output, classify, num_classes = None):
         self.width_in = width_in
         self.height_in = height_in
         self.depth = depth
         self.num_output = num_output
+        self.classify = classify
         self.num_classes = num_classes
 
         self.weights = np.random.randn(self.num_output, self.depth * self.height_in * self.width_in)
@@ -167,7 +175,7 @@ class FullyConnectedLayer(object):
         # self.biases = np.ones((self.num_output,1))
         
         self.output = np.empty((self.num_output))
-        self.final_output = np.empty((self.num_classes))
+        self.final_output = None
 
     def feedforward(self, a):
         '''
@@ -175,90 +183,90 @@ class FullyConnectedLayer(object):
         '''
         print 'shape of w, input, b: ', self.weights.shape, a.shape, self.biases.shape
         self.output = sigmoid(np.dot(self.weights, a) + self.biases)
-        print self.output
+        # print self.output
         
         # forwardpass to classification
-        self.final_output = classify(self.output, self.num_output, self.num_classes)
-        return self.final_output
+        if self.classify == True:
+            self.final_output = classify(self.output, self.num_output, self.num_classes)
+            return self.final_output
+        else:
+            return self.output
+
+class Model(object):
+
+    def __init__(self, input_shape, layers):
+        '''
+        Args:
+        Convolutional Layer: shape of input, filter_size, stride, padding, num_filters
+        Pooling Layer: shape of input(depth, height_in, width_in), poolsize
+        Fully Connected Layer: shape_of_input, num_output, classify = True/False, num_classes (if classify True)
+        Gradient Descent: training data, batch_size, eta, num_epochs, lambda, test_data
+        '''
+        self.input_shape = input_shape
+
+        # e.g. layers: [conv_layer, pool_layer, fc_layer]
+        self.layers = layers
+        self.setup = []
+        first = True
+
+        for layer in self.layers:
+            # import ipdb; ipdb.set_trace()
+            # keep track of how many of the same layer you have:
+            # if no repetition, don't use numbering -> num = ''
+            for key in layer:
+                if key[-1].isdigit():
+                    num = key[-1]
+                    layer = key
+                else:
+                    num = ''
+                    layer = key
+
+            # check what type the layer is and take args based on the unique keys
+            layer_type = ['conv_layer{}'.format(num), 'pool_layer{}'.format(num), 'fc_layer{}'.format(num)]
+            if self.setup != []:
+                new_input_shape = self.setup[-1].output.shape
+
+            if layer == layer_type[0]:
+                # if it's the first layer, shape = input data's shape
+                if first:
+                    conv = ConvLayer(
+                        input_shape = self.input_shape,
+                        filter_size = layers[layer_type[0]]['filter_size'],
+                        stride = layers[layer_type[0]]['stride'],
+                        num_filters = layers[layer_type[0]]['num_filters'])
+                    first = False
+                else:
+                    conv = ConvLayer(
+                        new_input_shape,
+                        filter_size = layers[layer_type[0]]['filter_size'],
+                        stride = layers[layer_type[0]]['stride'],
+                        num_filters = layers[layer_type[0]]['num_filters'])
+                self.setup.append(conv)
+            elif layer == layer_type[1]:
+                pool = PoolingLayer(
+                    new_input_shape,
+                    poolsize = layers[layer_type[1]]['poolsize'])
+                self.setup.append(pool)
+            else:
+                fc = FullyConnectedLayer(
+                    new_input_shape,
+                    num_output = layers[layer_type[2]]['num_output'],
+                    classify = layers[layer_type[2]]['classify'],
+                    num_classes = layers[layer_type[2]]['num_classes'])
+                self.setup.append(fc)
+
+            
 
 
-# backpropagation
-##############################################################
-# I. Go from last layer to FC layer
-def backprop_final_to_fc(final_output,z_values,activation, y):
-    delta = (final_ouput - y) * sigmoid_prime(z_values)
-    delta_b = delta
-    delta_w = np.dot(delta, activation.transpose())
-    return delta_b, delta_w, delta
-
-def backprop_fc_to_pool(deltas, weights, fc_input, prev_z_vals):
-    _, _, delta = deltas
-    return calc_gradients(delta, weights, fc_input, prev_z_vals)
-
-def backprop_pool_to_conv(deltas, conv_shape, max_indices):
-    depth, height, width = conv_shape
-    delta_w, delta_b, delta = deltas
-    delta_new = np.zeros((depth, height, width))
-    depth = max_indices.shape[0]
-    
-    # shape of delta should be the same as max_indeces
-    if depth != delta.shape[0]:
-        raise Exception('Pooling shape is not aligned with deltas')
-
-    # roll out the delta matrix from pooling layer
-    pool_height, pool_width = delta.shape[1], delta.shape[2]
-    delta = delta.reshape((depth, pool_height * pool_width))
-    # same for the max index matrix
-    max_indices = max_indices.reshape((depth, pool_height * pool_width, 2))
-
-    for d in range(depth):
-        for i in range(max_indices.shape[1]):
-
-            # for row_index, col_index in max_indices:
-            row_index = int(max_indices[d][i][0])
-            col_index = int(max_indices[d][i][1])
-            delta_new[d][row_index][col_index] = delta[d][i]
-    return delta_new
+        def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None ):
+            # test for one pic
+            print 'hello'
 
 
-def backprop_from_conv(deltas, weights, input_to_conv, prev_z_vals):
-    '''
-    Args:
-     - stride
-     - 
-    '''
-    delta_b = deltas
-    # delta_w = np.dot(delta, conv_input.transpose())
-    # sp = sigmoid_prime(prev_z_vals)
-    # delta = np.dot(weights.transpose, delta) * sp
-
-    delta_w = np.zeros((weights.shape))            # you need to change the dims of weights
-    total_deltas_per_layer = deptas.shape[1] * deptas.shape[2]
-    deltas = deltas.reshape((deltas.shape[0], deltas.shape[1] * deltas.shape[2]))
-
-    for j in range(weights.shape[0]):
-        slide = 0
-        row = 0
-
-        for i in range(total_deltas_per_layer):
-            to_conv = input_to_conv[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide]
-            delta_w[j] += to_conv * deltas[j][i]
-            slide += STRIDE
-
-            if (FILTER_SIZE + slide)-STRIDE >= input_to_conv.shape[1]:    # wrap indices at the end of each row
-                slide = 0
-                row += STRIDE
-
-    # update biases ?!
-    return delta_w, delta_b
 
 
-def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
-    sp = sigmoid_prime(prev_z_vals)
-    delta = np.dot(prev_weights.transpose(), delta) * sp                  # backprop to calculate error (delta) at layer - 1
-    delta_b = delta
-    delta_w = np.dot(delta, prev_activations.transpose())
-    return delta_b, delta_w, delta
+
+
 
 # helper functions
 ###############################################################
@@ -282,6 +290,7 @@ def sigmoid(z):
 def sigmoid_prime(z):
     return sigmoid(z) * (1-sigmoid(z))
 
+'''
 # setting up
 #################################################################
 net = ConvLayer([cat.shape[0]*cat.shape[1]])    # make sure this works for RGB, too
@@ -297,8 +306,6 @@ pool_layer = PoolingLayer(conv_output.shape[0], conv_output.shape[1], conv_outpu
 pool_layer.pool(conv_output)
 for i in range(pool_layer.output.shape[0]):
     plt.imsave('pool_pic%s.jpg'%i, pool_layer.output[i])
-
-
 
 
 
@@ -318,3 +325,4 @@ for i in range(pool_layer.output.shape[0]):
 
 # fc = FullyConnectedLayer(2,2,2,2,0)
 # fc.feedforward(a)
+'''
