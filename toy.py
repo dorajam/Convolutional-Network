@@ -53,10 +53,9 @@ STRIDE = 1
 PADDING = 0
 FILTER_SIZE = 2
 
-class ToyNet(object):
+class ConvLayer(object):
 
-    def __init__(self, sizes):
-        self.sizes = sizes
+    def __init__(self, data):
         # initialize a list of filters
         self.weights = []
         for i in range(DEPTH):
@@ -219,14 +218,40 @@ def backprop_pool_to_conv(deltas, conv_shape, max_indices):
             row_index = int(max_indices[d][i][0])
             col_index = int(max_indices[d][i][1])
             delta_new[d][row_index][col_index] = delta[d][i]
-
     return delta_new
 
-def backprop_from_conv(delta, weights, conv_input, prev_z_vals):
-    delta_b = delta
-    delta_w = np.dot(delta, conv_input.transpose())
-    sp = sigmoid_prime(prev_z_vals)
-    delta = np.dot(weights.transpose, delta) * sp
+
+def backprop_from_conv(deltas, weights, input_to_conv, prev_z_vals):
+    '''
+    Args:
+     - stride
+     - 
+    '''
+    delta_b = deltas
+    # delta_w = np.dot(delta, conv_input.transpose())
+    # sp = sigmoid_prime(prev_z_vals)
+    # delta = np.dot(weights.transpose, delta) * sp
+
+    delta_w = np.zeros((weights.shape))            # you need to change the dims of weights
+    total_deltas_per_layer = deptas.shape[1] * deptas.shape[2]
+    deltas = deltas.reshape((deltas.shape[0], deltas.shape[1] * deltas.shape[2]))
+
+    for j in range(weights.shape[0]):
+        slide = 0
+        row = 0
+
+        for i in range(total_deltas_per_layer):
+            to_conv = input_to_conv[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide]
+            delta_w[j] += to_conv * deltas[j][i]
+            slide += STRIDE
+
+            if (FILTER_SIZE + slide)-STRIDE >= input_to_conv.shape[1]:    # wrap indices at the end of each row
+                slide = 0
+                row += STRIDE
+
+    # update biases ?!
+    return delta_w, delta_b
+
 
 def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
     sp = sigmoid_prime(prev_z_vals)
@@ -259,7 +284,7 @@ def sigmoid_prime(z):
 
 # setting up
 #################################################################
-net = ToyNet([cat.shape[0]*cat.shape[1]])
+net = ConvLayer([cat.shape[0]*cat.shape[1]])    # make sure this works for RGB, too
 print 'yooooo', net.sizes[0]
 conv_output = net.convolve(cat)
 
@@ -273,14 +298,16 @@ pool_layer.pool(conv_output)
 for i in range(pool_layer.output.shape[0]):
     plt.imsave('pool_pic%s.jpg'%i, pool_layer.output[i])
 
+
+
+
+
+##################################################################
 # test
-delta = np.ones((pool_layer.output.shape[0], pool_layer.output.shape[1], pool_layer.output.shape[2])) * 0.5 
-deltas = None, None, delta
-print delta.shape, '== ? ', pool_layer.max_indices.shape[0:3]
-backprop_pool_to_conv(deltas, conv_output.shape, pool_layer.max_indices)
-
-
-
+# delta = np.ones((pool_layer.output.shape[0], pool_layer.output.shape[1], pool_layer.output.shape[2])) * 0.5 
+# deltas = None, None, delta
+# print delta.shape, '== ? ', pool_layer.max_indices.shape[0:3]
+# backprop_pool_to_conv(deltas, conv_output.shape, pool_layer.max_indices)
 
 
 # testing
