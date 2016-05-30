@@ -1,5 +1,6 @@
 # This is the basic idea behind the architecture
 
+import sys, os
 import numpy as np
 import random
 import math
@@ -63,7 +64,7 @@ class ConvLayer(object):
         self.padding = padding
         self.num_filters = num_filters
 
-        self.weights = np.random.randn(self.num_filters, self.filter_size, self.filter_size)
+        self.weights = np.random.randn(self.num_filters, self.depth, self.filter_size, self.filter_size)
         self.biases = np.random.rand(self.num_filters,1)
 
         self.output_dim1 = (self.height_in - self.filter_size + 2*self.padding)/self.stride + 1        # num of rows
@@ -94,7 +95,7 @@ class ConvLayer(object):
             for i in range(act_length1d):  # loop til the output array is filled up -> one dimensional (600)
 
                 # ACTIVATIONS -> loop through each conv block horizontally
-                self.output[j][i] = sigmoid(np.sum(input_neurons[row:self.filter_size+row, slide:self.filter_size + slide] * self.weights[j][0]) + self.biases[j])
+                self.output[j][i] = sigmoid(np.sum(input_neurons[:,row:self.filter_size+row, slide:self.filter_size + slide] * self.weights[j][0]) + self.biases[j])
                 slide += self.stride
 
                 if (self.filter_size + slide)-self.stride >= self.width_in:    # wrap indices at the end of each row
@@ -108,22 +109,24 @@ class ConvLayer(object):
 
 class PoolingLayer(object):
 
-    def __init__(self, shape_of_input, poolsize = (2,2)):
+    def __init__(self, input_shape, poolsize = (2,2)):
         '''
         width_in and height_in are the dimensions of the input image
         poolsize is treated as a tuple of filter and stride -> it should work with overlapping pooling
         '''
-        self.depth, self.height_in, self.width_in = shape_of_input
+        self.depth, self.height_in, self.width_in = input_shape
         self.poolsize = poolsize
         self.height_out = (self.height_in - self.poolsize[0])/self.poolsize[1] + 1
         self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1      # num of output neurons
-        print 'Pooling shape (depth,row,col): ', self.depth, self.height_out, self.width_out
+
+        self.output = np.empty((self.depth, self.height_out, self.width_out))
+        print 'Pooling shape (depth,row,col): ', self.output.shape
 
     def pool(self, input_image):
 
         self.pool_length1d = self.height_out * self.width_out
 
-        self.output = np.empty((self.depth, self.pool_length1d))
+        self.output = self.output.reshape((self.depth, self.pool_length1d))
         self.max_indices = np.empty((self.depth, self.pool_length1d, 2))
         
         # for each filter map
@@ -153,18 +156,14 @@ class PoolingLayer(object):
 
         self.output = self.output.reshape((self.depth, self.height_out, self.width_out))
         self.max_indices = self.max_indices.reshape((self.depth, self.height_out, self.width_out, 2))
-        # print self.max_indices
-#         print 'AFTER RESHPAING:', self.output
-
+        return self.output
 
 class FullyConnectedLayer(object):
     '''
     Calculates outputs on the fully connected layer then forwardpasses to the final output -> classes
     '''
-    def __init__(self, depth, height_in, width_in, num_output, classify, num_classes = None):
-        self.width_in = width_in
-        self.height_in = height_in
-        self.depth = depth
+    def __init__(self, input_shape, num_output, classify, num_classes = None):
+        self.depth, self.height_in, self.width_in = input_shape
         self.num_output = num_output
         self.classify = classify
         self.num_classes = num_classes
@@ -208,6 +207,7 @@ class Model(object):
         self.layers = layers
         self.setup = []
         first = True
+        layerType = ''
 
         for layer in self.layers:
             # import ipdb; ipdb.set_trace()
@@ -216,52 +216,73 @@ class Model(object):
             for key in layer:
                 if key[-1].isdigit():
                     num = key[-1]
-                    layer = key
+                    layerType = key
                 else:
                     num = ''
-                    layer = key
+                    layerType = key
 
-            # check what type the layer is and take args based on the unique keys
-            layer_type = ['conv_layer{}'.format(num), 'pool_layer{}'.format(num), 'fc_layer{}'.format(num)]
-            if self.setup != []:
+            if not first:
                 new_input_shape = self.setup[-1].output.shape
 
-            if layer == layer_type[0]:
+            if layerType == 'conv_layer{}'.format(num):
                 # if it's the first layer, shape = input data's shape
                 if first:
-                    conv = ConvLayer(
-                        input_shape = self.input_shape,
-                        filter_size = layers[layer_type[0]]['filter_size'],
-                        stride = layers[layer_type[0]]['stride'],
-                        num_filters = layers[layer_type[0]]['num_filters'])
+                    new_input_shape = self.input_shape
                     first = False
-                else:
-                    conv = ConvLayer(
-                        new_input_shape,
-                        filter_size = layers[layer_type[0]]['filter_size'],
-                        stride = layers[layer_type[0]]['stride'],
-                        num_filters = layers[layer_type[0]]['num_filters'])
+                conv = ConvLayer(
+                    new_input_shape,
+                    filter_size = layer[layerType]['filter_size'],
+                    stride = layer[layerType]['stride'],
+                    num_filters = layer[layerType]['num_filters'])
                 self.setup.append(conv)
-            elif layer == layer_type[1]:
+
+            elif layerType == 'pool_layer{}'.format(num):
                 pool = PoolingLayer(
                     new_input_shape,
-                    poolsize = layers[layer_type[1]]['poolsize'])
+                    poolsize = layer[layerType]['poolsize'])
                 self.setup.append(pool)
+
             else:
                 fc = FullyConnectedLayer(
                     new_input_shape,
-                    num_output = layers[layer_type[2]]['num_output'],
-                    classify = layers[layer_type[2]]['classify'],
-                    num_classes = layers[layer_type[2]]['num_classes'])
+                    num_output = layer[layerType]['num_output'],
+                    classify = layer[layerType]['classify'],
+                    num_classes = layer[layerType]['num_classes'])
                 self.setup.append(fc)
 
             
 
 
-        def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None ):
-            # test for one pic
-            print 'hello'
+    def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None):
+        # test for one pic
+        plt.imsave('training.jpg', training_data[0])
+        activations = []
 
+        # forwardpass
+        for layer in self.setup:
+            print 'layer', layer
+            if isinstance(layer, ConvLayer) == True:
+                conv_output = layer.convolve(training_data)
+                activations.append((training_data, conv_output))
+
+                # this is pretty sweet -> see the image after the convolution
+                for i in range(conv_output.shape[0]):
+                    plt.imsave('images/cat_conv%s.jpg'%i, conv_output[i])
+
+            elif isinstance(layer, PoolingLayer) == True:
+                pool_input = activations[-1][1]
+                pool_output = layer.pool(pool_input)
+                activations.append((pool_input, pool_output))
+                print pool_output
+
+                for i in range(pool_output.shape[0]):
+                    plt.imsave('images/pool_pic%s.jpg'%i, pool_output[i])
+
+            else:
+                fc_input = activations[-1][1]
+                fc_output = layer.feedforward(fc_input)
+                activations.append((fc_input, fc_output))
+                print fc_output
 
 
 

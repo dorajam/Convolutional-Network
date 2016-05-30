@@ -2,7 +2,7 @@
 # May 2016
 # Use this to setup the convolutional network
 
-from toy import Model
+from toy import *
 from backprop import *
 import collections
 
@@ -26,7 +26,7 @@ import scipy
 from scipy import ndimage, misc
 import matplotlib.pyplot as plt
 
-im = scipy.ndimage.imread('cat.jpg', flatten=True)
+im = scipy.ndimage.imread('images/cat.jpg', flatten=True)
 a = im.shape[0]
 b= im.shape[1]
 cat = scipy.misc.imresize(im, (a/40,b/40), interp='bilinear', mode=None)
@@ -35,7 +35,7 @@ cat = 1.0 - cat/255.0
 
 ######################### TEST IMAGE ##########################
 
-training_data = cat
+training_data = cat.reshape((1,43,64))
 input_shape = training_data.shape
 print 'shape of input data: ', input_shape
 
