@@ -8,10 +8,10 @@ import numpy as np
 # backpropagation
 ##############################################################
 # I. Go from last layer to FC layer
-def backprop_final_to_fc(final_output,z_values,activation, y):
-    delta = (final_ouput - y) * sigmoid_prime(z_values)
+def backprop_final_to_fc(prev_activation, z_vals, final_output, y):
+    delta = (final_output - y) * sigmoid_prime(z_vals)
     delta_b = delta
-    delta_w = np.dot(delta, activation.transpose())
+    delta_w = np.dot(delta, prev_activation.transpose())
     return delta_b, delta_w, delta
 
 def backprop_fc_to_pool(deltas, weights, fc_input, prev_z_vals):
@@ -82,3 +82,10 @@ def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
     delta_b = delta
     delta_w = np.dot(delta, prev_activations.transpose())
     return delta_b, delta_w, delta
+
+  
+def sigmoid(z):
+    return 1.0/(1.0 + np.exp(-z))
+
+def sigmoid_prime(z):
+    return sigmoid(z) * (1-sigmoid(z))

@@ -4,6 +4,7 @@
 
 from toy import *
 from backprop import *
+
 import collections
 
 ETA = 1.5
@@ -45,7 +46,17 @@ net = Model(input_shape,
                     'filter_size' : 3,
                     'stride' : 1,
                     'num_filters' : 3}},
+                {'conv_layer1': {
+                    'filter_size' : 3,
+                    'stride': 1,
+                    'num_filters': 3}},
                 {'pool_layer': {
+                    'poolsize' : (2,2)}},
+                {'conv_layer2': {
+                    'filter_size' : 3,
+                    'stride': 1,
+                    'num_filters': 6}},
+                {'pool_layer1': {
                     'poolsize' : (2,2)}},
                 {'fc_layer': {
                     'num_output' : 100,

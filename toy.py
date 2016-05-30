@@ -1,6 +1,5 @@
 # This is the basic idea behind the architecture
 
-import sys, os
 import numpy as np
 import random
 import math
@@ -8,6 +7,8 @@ import time
 import scipy
 from scipy import ndimage, misc
 import matplotlib.pyplot as plt
+
+from backprop import *
 
 '''
 im = scipy.ndimage.imread('cat.jpg', flatten=True)
@@ -70,6 +71,8 @@ class ConvLayer(object):
         self.output_dim1 = (self.height_in - self.filter_size + 2*self.padding)/self.stride + 1        # num of rows
         self.output_dim2 =  (self.width_in - self.filter_size + 2*self.padding)/self.stride + 1         # num of cols
         
+        
+        self.z_values = np.zeros((self.num_filters, self.output_dim1, self.output_dim2))
         self.output = np.zeros((self.num_filters, self.output_dim1, self.output_dim2))
 
         print 'shape of input (depth, rows,cols): ', input_shape
@@ -83,10 +86,10 @@ class ConvLayer(object):
         '''
 
         # roll out activations
-        self.output = np.zeros((self.num_filters, self.output_dim1 * self.output_dim2))
+        self.z_values = self.z_values.reshape((self.num_filters, self.output_dim1 * self.output_dim2))
+        self.output = self.output.reshape((self.num_filters, self.output_dim1 * self.output_dim2))
         
         act_length1d =  self.output.shape[1]
-        print 'shape of each rolled feature map: ', act_length1d   # one dimensional
 
         for j in range(self.num_filters):
             slide = 0
@@ -95,16 +98,18 @@ class ConvLayer(object):
             for i in range(act_length1d):  # loop til the output array is filled up -> one dimensional (600)
 
                 # ACTIVATIONS -> loop through each conv block horizontally
-                self.output[j][i] = sigmoid(np.sum(input_neurons[:,row:self.filter_size+row, slide:self.filter_size + slide] * self.weights[j][0]) + self.biases[j])
+                self.z_values[j][i] = np.sum(input_neurons[:,row:self.filter_size+row, slide:self.filter_size + slide] * self.weights[j]) + self.biases[j]
+                self.output[j][i] = sigmoid(self.z_values[j][i])
                 slide += self.stride
 
                 if (self.filter_size + slide)-self.stride >= self.width_in:    # wrap indices at the end of each row
                     slide = 0
                     row += self.stride
 
-        self.output = self.output.reshape((self.filter_size, self.output_dim1, self.output_dim2))
+        self.z_values = self.output.reshape((self.num_filters, self.output_dim1, self.output_dim2))
+        self.output = self.output.reshape((self.num_filters, self.output_dim1, self.output_dim2))
         print 'Shape of final conv output: ', self.output.shape
-        return self.output
+        return self.output, self.z_values
 
 
 class PoolingLayer(object):
@@ -120,6 +125,7 @@ class PoolingLayer(object):
         self.width_out = (self.width_in - self.poolsize[0])/self.poolsize[1] + 1      # num of output neurons
 
         self.output = np.empty((self.depth, self.height_out, self.width_out))
+        self.max_indices = np.empty((self.depth, self.height_out, self.width_out, 2))
         print 'Pooling shape (depth,row,col): ', self.output.shape
 
     def pool(self, input_image):
@@ -127,7 +133,7 @@ class PoolingLayer(object):
         self.pool_length1d = self.height_out * self.width_out
 
         self.output = self.output.reshape((self.depth, self.pool_length1d))
-        self.max_indices = np.empty((self.depth, self.pool_length1d, 2))
+        self.max_indices = self.max_indices.reshape((self.depth, self.pool_length1d, 2))
         
         # for each filter map
         for j in range(self.depth):
@@ -149,10 +155,6 @@ class PoolingLayer(object):
                 if slide >= self.width_in:
                     slide = 0
                     row += self.poolsize[1]
-#                 print 'matrix: ', toPool,'max', self.output[j][k-1]
-#                 print 'index: ', self.max_indices[j][k-1]
-#                 if k > 10:
-#                     break
 
         self.output = self.output.reshape((self.depth, self.height_out, self.width_out))
         self.max_indices = self.max_indices.reshape((self.depth, self.height_out, self.width_out, 2))
@@ -173,23 +175,27 @@ class FullyConnectedLayer(object):
         # self.weights = np.ones((self.num_output, self.depth * self.height_in * self.width_in))
         # self.biases = np.ones((self.num_output,1))
         
+        self.z_values = np.empty((self.num_output))
         self.output = np.empty((self.num_output))
-        self.final_output = None
 
     def feedforward(self, a):
         '''
         forwardpropagates through the FC layer to the final output layer
         '''
+        # roll out the input image
+        a = a.reshape((self.depth * self.height_in * self.width_in, 1))
+
         print 'shape of w, input, b: ', self.weights.shape, a.shape, self.biases.shape
-        self.output = sigmoid(np.dot(self.weights, a) + self.biases)
+        self.z_values = np.dot(self.weights, a) + self.biases
+        self.output = sigmoid(self.z_values)
         # print self.output
         
         # forwardpass to classification
         if self.classify == True:
-            self.final_output = classify(self.output, self.num_output, self.num_classes)
-            return self.final_output
+            z_vals, final_output = classify(self.output, self.num_output, self.num_classes)
+            return self.z_values, self.output, z_vals, final_output
         else:
-            return self.output
+            return self.z_values, self.output
 
 class Model(object):
 
@@ -201,6 +207,7 @@ class Model(object):
         Fully Connected Layer: shape_of_input, num_output, classify = True/False, num_classes (if classify True)
         Gradient Descent: training data, batch_size, eta, num_epochs, lambda, test_data
         '''
+
         self.input_shape = input_shape
 
         # e.g. layers: [conv_layer, pool_layer, fc_layer]
@@ -210,7 +217,6 @@ class Model(object):
         layerType = ''
 
         for layer in self.layers:
-            # import ipdb; ipdb.set_trace()
             # keep track of how many of the same layer you have:
             # if no repetition, don't use numbering -> num = ''
             for key in layer:
@@ -250,42 +256,53 @@ class Model(object):
                     num_classes = layer[layerType]['num_classes'])
                 self.setup.append(fc)
 
-            
 
 
     def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None):
         # test for one pic
-        plt.imsave('training.jpg', training_data[0])
-        activations = []
+        plt.imsave('images/training.jpg', training_data[0])
+        activations = [([], training_data)]
 
         # forwardpass
         for layer in self.setup:
-            print 'layer', layer
+            
             if isinstance(layer, ConvLayer) == True:
-                conv_output = layer.convolve(training_data)
-                activations.append((training_data, conv_output))
+                conv_input = activations[-1][-1]
+                conv_output, conv_z_vals = layer.convolve(conv_input)
+                activations.append((conv_z_vals, conv_input, conv_output))
 
                 # this is pretty sweet -> see the image after the convolution
                 for i in range(conv_output.shape[0]):
                     plt.imsave('images/cat_conv%s.jpg'%i, conv_output[i])
 
             elif isinstance(layer, PoolingLayer) == True:
-                pool_input = activations[-1][1]
+                pool_input = activations[-1][-1]
                 pool_output = layer.pool(pool_input)
                 activations.append((pool_input, pool_output))
-                print pool_output
 
                 for i in range(pool_output.shape[0]):
                     plt.imsave('images/pool_pic%s.jpg'%i, pool_output[i])
 
             else:
-                fc_input = activations[-1][1]
-                fc_output = layer.feedforward(fc_input)
-                activations.append((fc_input, fc_output))
-                print fc_output
+                fc_input = activations[-1][-1]
+                if not layer.classify:
+                    fc_z_vals, fc_output = layer.feedforward(fc_input)
+                else:
+                    fc_z_vals, fc_output, final_z_vals, final_output = layer.feedforward(fc_input)
+                
+                activations.append((fc_input, fc_z_vals, fc_output))
+                activations.append((fc_output, final_z_vals, final_output))
+                print final_output
 
-
-
+        # backpropagation
+        labels = np.asarray(([1,0])).reshape((2,1))
+        delta_w, delta_b, deltas = [],[],[]
+        delta_b, delta_w, delta = backprop_final_to_fc(
+            prev_activation = activations[-1][0],
+            z_vals = activations[-1][1],
+            final_output = activations[-1][2],
+            y=labels)
+        print delta_b, delta_w, delta
 
 
 
@@ -295,7 +312,9 @@ def classify(x, num_inputs, num_classes):
     # I. initialize weights and biases!
     w = np.random.randn(num_classes, num_inputs)
     b = np.random.randn(num_classes,1)
-    return sigmoid(np.dot(w,x) + b)
+    z = np.dot(w,x) + b
+    a = sigmoid(z)
+    return z, a
 
 
 # LOSS FUNCTIONS
@@ -312,38 +331,10 @@ def sigmoid_prime(z):
     return sigmoid(z) * (1-sigmoid(z))
 
 '''
-# setting up
-#################################################################
-net = ConvLayer([cat.shape[0]*cat.shape[1]])    # make sure this works for RGB, too
-print 'yooooo', net.sizes[0]
-conv_output = net.convolve(cat)
-
-# this is pretty sweet -> see the image after the convolution
-for i in range(conv_output.shape[0]):
-    plt.imsave('cat_conv%s.jpg'%i, conv_output[i])
-
-# TODO: implement for all activations!
-pool_layer = PoolingLayer(conv_output.shape[0], conv_output.shape[1], conv_output.shape[2])
-pool_layer.pool(conv_output)
-for i in range(pool_layer.output.shape[0]):
-    plt.imsave('pool_pic%s.jpg'%i, pool_layer.output[i])
-
-
-
 ##################################################################
 # test
 # delta = np.ones((pool_layer.output.shape[0], pool_layer.output.shape[1], pool_layer.output.shape[2])) * 0.5 
 # deltas = None, None, delta
 # print delta.shape, '== ? ', pool_layer.max_indices.shape[0:3]
 # backprop_pool_to_conv(deltas, conv_output.shape, pool_layer.max_indices)
-
-
-# testing
-##################################################################
-# a = np.arange(8).reshape((2*2*2,1))
-# w = np.ones(16).reshape((2,2,2,2))
-# o = np.arange(2).reshape((2,1))
-
-# fc = FullyConnectedLayer(2,2,2,2,0)
-# fc.feedforward(a)
 '''
