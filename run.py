@@ -46,22 +46,17 @@ net = Model(input_shape,
                     'filter_size' : 3,
                     'stride' : 1,
                     'num_filters' : 3}},
-                {'conv_layer1': {
-                    'filter_size' : 3,
-                    'stride': 1,
-                    'num_filters': 3}},
                 {'pool_layer': {
-                    'poolsize' : (2,2)}},
-                {'conv_layer2': {
-                    'filter_size' : 3,
-                    'stride': 1,
-                    'num_filters': 6}},
-                {'pool_layer1': {
                     'poolsize' : (2,2)}},
                 {'fc_layer': {
                     'num_output' : 100,
+                    'classify' : False,
+                    'num_classes' : None}},
+                {'fc_layer1': {
+                    'num_output' : 100,
                     'classify' : True,
                     'num_classes' : 2}}
+
             ])
 net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = None)
 

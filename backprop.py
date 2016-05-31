@@ -9,15 +9,19 @@ import numpy as np
 ##############################################################
 # I. Go from last layer to FC layer
 def backprop_final_to_fc(prev_activation, z_vals, final_output, y):
+    # print 'prev_act: ', prev_activation.shape,'z_vals: ', z_vals.shape, 'final_output: ', final_output.shape,'labels: ', y
     delta = (final_output - y) * sigmoid_prime(z_vals)
     delta_b = delta
     delta_w = np.dot(delta, prev_activation.transpose())
     return delta_b, delta_w, delta
 
-def backprop_fc_to_pool(deltas, weights, fc_input, prev_z_vals):
-    _, _, delta = deltas
-    return calc_gradients(delta, weights, fc_input, prev_z_vals)
-
+def backprop_fc_to_pool(delta, weights, prev_activations, z_vals):
+    print 'is this strange?: ', weights.shape
+    x,y,z = weights.shape
+    k,l = delta.shape
+    weights = weights.reshape((x,y,z,k))
+    return calc_gradients(delta, prev_weights, prev_activations, z_vals)
+    
 def backprop_pool_to_conv(deltas, conv_shape, max_indices):
     depth, height, width = conv_shape
     delta_w, delta_b, delta = deltas
@@ -76,14 +80,18 @@ def backprop_from_conv(deltas, weights, input_to_conv, prev_z_vals):
     return delta_w, delta_b
 
 
-def calc_gradients(delta, prev_weights, prev_activations, prev_z_vals):
-    sp = sigmoid_prime(prev_z_vals)
-    delta = np.dot(prev_weights.transpose(), delta) * sp                  # backprop to calculate error (delta) at layer - 1
+def calc_gradients(delta, prev_weights, prev_activations, z_vals):
+    sp = sigmoid_prime(z_vals)
+    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
     delta_b = delta
     delta_w = np.dot(delta, prev_activations.transpose())
     return delta_b, delta_w, delta
 
-  
+# def update(eta, weights, biases, dw, db, batch_size=1):
+#     weights = weights - eta * dw/batch_size
+#     biases = biases - eta * db
+
+
 def sigmoid(z):
     return 1.0/(1.0 + np.exp(-z))
 
