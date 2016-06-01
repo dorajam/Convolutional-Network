@@ -152,7 +152,7 @@ class FullyConnectedLayer(object):
         self.classify = classify
         self.num_classes = num_classes
 
-        self.weights = np.random.randn(self.num_output, self.depth, self.height_in, self.width_in)
+        self.weights = np.random.randn(self.num_output, self.depth * self.height_in * self.width_in)
         self.biases = np.random.randn(self.num_output,1)
         if (self.classify):
             self.final_weights = np.zeros((self.num_output, self.num_classes))
@@ -166,7 +166,7 @@ class FullyConnectedLayer(object):
         forwardpropagates through the FC layer to the final output layer
         '''
         # roll out the dimensions
-        self.weights = self.weights.reshape((self.num_output, self.depth * self.height_in * self.width_in))
+        # self.weights = self.weights.reshape((self.num_output, self.depth * self.height_in * self.width_in))
         a = a.reshape((self.depth * self.height_in * self.width_in, 1))
 
         print 'shape of w, input, b: ', self.weights.shape, a.shape, self.biases.shape
@@ -265,6 +265,7 @@ class Model(object):
         plt.imsave('images/training.jpg', training_data[0])
         activations = [([], training_data)]
         all_delta_w, all_delta_b = [], []
+        stride_params, pooling_params = [], []
 
         # forwardpass
         for layer in self.setup:
@@ -272,6 +273,7 @@ class Model(object):
                 conv_input = activations[-1][-1]
                 conv_output, conv_z_vals = layer.convolve(conv_input)
                 activations.append((conv_input, conv_z_vals, conv_output))
+                stride_params.append(layer.stride)
 
                 # this is pretty sweet -> see the image after the convolution
                 for i in range(conv_output.shape[0]):
@@ -280,7 +282,8 @@ class Model(object):
             elif isinstance(layer, PoolingLayer) == True:
                 pool_input = activations[-1][-1]
                 pool_output = layer.pool(pool_input)
-                activations.append((pool_input, pool_output))
+                activations.append((pool_input, layer.max_indices, pool_output))
+                pooling_params.append(layer.poolsize)
 
                 for i in range(pool_output.shape[0]):
                     plt.imsave('images/pool_pic%s.jpg'%i, pool_output[i])
@@ -307,8 +310,10 @@ class Model(object):
             weight_count = len(self.all_weights) - 1
 
             def update(num, eta, weights, biases, dw, db, batch_size=1):
+                print weights.shape, biases.shape, dw.shape, db.shape
                 self.all_weights[num] = weights - eta * dw/batch_size
                 self.all_biases[num] = biases - eta * db
+
 
             for l in range(len(self.layer_transition)-1,-1, -1):
                 transition = self.layer_transition[l]
@@ -329,33 +334,56 @@ class Model(object):
                         delta = delta,
                         prev_weights = self.all_weights[weight_count+1],
                         prev_activations = activations[l+1][0],
-                        z_vals = activations[l+1][1],
-                    )
+                        z_vals = activations[l+1][1])
 
                 # fc to pool layer
                 elif transition == 'poolfc':
-                    break
                     db,dw, delta = backprop_fc_to_pool(
                         delta = delta,
-                        weights = self.all_weights[weight_count+1],
+                        prev_weights = self.all_weights[weight_count+1],
                         prev_activations = activations[l+1][0],
-                        z_vals = activations[l+1][1],
-                    )
+                        z_vals = activations[l+1][1])
 
                 # pool to conv layer
                 elif transition == 'convpool':
-                    pass
+                    delta = backprop_pool_to_conv(
+                        delta = delta,
+                        prev_weights = self.all_weights[weight_count+1],
+                        input_from_conv = activations[l+1][0],
+                        max_indices = activations[l+1][1],
+                        poolsize = pooling_params[-1],
+                        pool_output = activations[l+1][2])
+                    pooling_params.pop()
 
                 # conv to conv layer
                 elif transition == 'convconv':
-                    pass
+                    db,dw = backprop_conv_to_conv(
+                        delta = delta,
+                        weight_filters = self.all_weights[weight_count+1],
+                        stride = stride_params[-1],
+                        input_to_conv = activations[l+1][0],
+                        prev_z_vals = activations[l+1][1])
+                    stride_params.pop()
+                    update(weight_count+1, eta, self.all_weights[weight_count+1], self.all_biases[weight_count+1], dw,db, batch_size = 1)
 
                 # beginning 
                 else:
-                    pass
+                    print 'HELOOO'
+                    db,dw = backprop_from_conv(
+                        delta = delta,
+                        weight_filters = self.all_weights[weight_count+1],
+                        stride = stride_params[-1],
+                        input_to_conv = activations[l+1][0],
+                        prev_z_vals = activations[l+1][1])
+                    stride_params.pop()
+                    update(weight_count+1, eta, self.all_weights[weight_count+1], self.all_biases[weight_count+1], dw,db, batch_size = 1)
 
-                print delta.shape, dw.shape, self.all_weights[weight_count].shape
-                update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
+                if (transition != 'convpool') and (transition !='convconv') and (transition !='conv'):
+                    print 'delta,dw, weights shape: ',delta.shape, dw.shape, self.all_weights[weight_count].shape
+                    update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
+                # print 'AFTER UPDATE: ', self.all_weights[-1]
+                # else:
+                #     print 'my delta after pooling:', delta.shape
                 weight_count -= 1     # set pointer to the weights on prev layer
 
 

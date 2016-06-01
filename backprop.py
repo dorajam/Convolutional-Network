@@ -15,82 +15,132 @@ def backprop_final_to_fc(prev_activation, z_vals, final_output, y):
     delta_w = np.dot(delta, prev_activation.transpose())
     return delta_b, delta_w, delta
 
-def backprop_fc_to_pool(delta, weights, prev_activations, z_vals):
-    print 'is this strange?: ', weights.shape
-    x,y,z = weights.shape
-    k,l = delta.shape
-    weights = weights.reshape((x,y,z,k))
+def backprop_fc_to_pool(delta, prev_weights, prev_activations, z_vals):
+    x,y,z = prev_activations.shape
+    prev_activations = prev_activations.reshape((x*y*z, 1))
     return calc_gradients(delta, prev_weights, prev_activations, z_vals)
     
-def backprop_pool_to_conv(deltas, conv_shape, max_indices):
-    depth, height, width = conv_shape
-    delta_w, delta_b, delta = deltas
-    delta_new = np.zeros((depth, height, width))
-    depth = max_indices.shape[0]
-    
-    # shape of delta should be the same as max_indeces
-    if depth != delta.shape[0]:
-        raise Exception('Pooling shape is not aligned with deltas')
+def backprop_pool_to_conv(delta, prev_weights, input_from_conv, max_indices, poolsize, pool_output):
+    # reshape the "z values" of the pool layer
+    x,y,z = pool_output.shape
+    pool_output= pool_output.reshape((x * y * z,1))
 
-    # roll out the delta matrix from pooling layer
-    pool_height, pool_width = delta.shape[1], delta.shape[2]
-    delta = delta.reshape((depth, pool_height * pool_width))
     # same for the max index matrix
-    max_indices = max_indices.reshape((depth, pool_height * pool_width, 2))
+    max_indices = max_indices.reshape((x, y * z, 2))
 
-    for d in range(depth):
+    # backprop delta from fc to pool layer
+    sp = sigmoid_prime(pool_output)
+    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
+    delta = delta.reshape((x,y*z))
+    pool_output= pool_output.reshape((x, y * z))
+
+    print 'my delta on fc before pooling:' ,delta.shape
+
+    depth, height, width = input_from_conv.shape
+    delta_new = np.zeros((depth, height, width)) # this should be the dims of the conv layer
+
+    for d in range(depth):    # depth is the same for conv + pool layer
+        row = 0
+        slide = 0
         for i in range(max_indices.shape[1]):
+            toPool = input_from_conv[d][row:poolsize[0] + row, slide:poolsize[0] + slide]
 
-            # for row_index, col_index in max_indices:
-            row_index = int(max_indices[d][i][0])
-            col_index = int(max_indices[d][i][1])
-            delta_new[d][row_index][col_index] = delta[d][i]
+            # calculate the new delta for the conv layer based on the max result + pooling input
+            delta_new[d][row:poolsize[0] + row, slide:poolsize[0] + slide] = max_prime(pool_output[d][i], delta[d][i], toPool)
+
+            slide += poolsize[1]
+            if slide >= width:
+                slide = 0
+                row+= poolsize[1]
+
     return delta_new
 
-
-def backprop_from_conv(deltas, weights, input_to_conv, prev_z_vals):
+def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_vals):
     '''
     Args:
      - stride
      - 
     '''
-    delta_b = deltas
-    # delta_w = np.dot(delta, conv_input.transpose())
-    # sp = sigmoid_prime(prev_z_vals)
-    # delta = np.dot(weights.transpose, delta) * sp
+    # this is 4 dims: num_filters, depth, height, width
+    print 'filter dimensions: ', weight_filters.shape
+    num_filters, depth, filter_size, filter_size = weight_filters.shape
 
-    delta_w = np.zeros((weights.shape))            # you need to change the dims of weights
-    total_deltas_per_layer = deptas.shape[1] * deptas.shape[2]
-    deltas = deltas.reshape((deltas.shape[0], deltas.shape[1] * deltas.shape[2]))
+    print 'conv input shape:', input_to_conv.shape
+    
+    delta_b = delta
+    delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
+    total_deltas_per_layer = delta.shape[1] * delta.shape[2]
+    delta = delta.reshape((delta.shape[0], delta.shape[1] * delta.shape[2]))
+    new_delta = np.zeros((input_to_conv.shape))
 
-    for j in range(weights.shape[0]):
+    for j in range(num_filters):
         slide = 0
         row = 0
 
         for i in range(total_deltas_per_layer):
-            to_conv = input_to_conv[row:FILTER_SIZE+row, slide:FILTER_SIZE + slide]
-            delta_w[j] += to_conv * deltas[j][i]
-            slide += STRIDE
+            to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
+            delta_w[j] += to_conv * delta[j][i]
 
-            if (FILTER_SIZE + slide)-STRIDE >= input_to_conv.shape[1]:    # wrap indices at the end of each row
+            slide += stride
+
+            if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
                 slide = 0
-                row += STRIDE
+                row += stride
 
     # update biases ?! return delta to conv 
-    return delta_w, delta_b
+    return delta_b, delta_w
+
+def update_delta(delta, weight_filters, stride, input_to_conv, prev_z_vals):
+    # this is 4 dims: num_filters, depth, height, width
+    print 'filter dimensions: ', weight_filters.shape
+    num_filters, depth, filter_size, filter_size = weight_filters.shape
+
+    print 'conv input shape:', input_to_conv.shape
+    
+    delta_b = delta
+    delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
+    total_deltas_per_layer = delta.shape[1] * delta.shape[2]
+    delta = delta.reshape((delta.shape[0], delta.shape[1] * delta.shape[2]))
+    new_delta = np.zeros((input_to_conv.shape))
+
+    for j in range(num_filters):
+        slide = 0
+        row = 0
+
+        for i in range(total_deltas_per_layer):
+            to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
+            delta_w[j] += to_conv * delta[j][i]
+
+            slide += stride
+
+            if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
+                slide = 0
+                row += stride
+
+    # update biases ?! return delta to conv 
+    return delta_b, delta_w
+
 
 
 def calc_gradients(delta, prev_weights, prev_activations, z_vals):
     sp = sigmoid_prime(z_vals)
+    print 'w,d,z_vals: ', prev_weights.transpose().shape, delta.shape, sp.shape
     delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
     delta_b = delta
     delta_w = np.dot(delta, prev_activations.transpose())
     return delta_b, delta_w, delta
 
-# def update(eta, weights, biases, dw, db, batch_size=1):
-#     weights = weights - eta * dw/batch_size
-#     biases = biases - eta * db
-
+def max_prime(res, delta, tile_to_pool):
+    dim1, dim2 = tile_to_pool.shape
+    tile_to_pool = tile_to_pool.reshape((dim1 * dim2))
+    new_delta = np.zeros((tile_to_pool.shape))
+    for i in range(len(tile_to_pool)):
+        num = tile_to_pool[i]
+        if num < res:
+            new_delta[i] = 0
+        else:
+            new_delta[i] = delta
+    return new_delta.reshape((dim1, dim2))
 
 def sigmoid(z):
     return 1.0/(1.0 + np.exp(-z))
