@@ -252,20 +252,21 @@ class Model(object):
                 self.all_weights.append(fc.weights)
                 self.all_biases.append(fc.biases)
 
-
             # store the names of the layers
             self.layer_transition[-1] = self.layer_transition[-1] + name
             self.layer_transition.append(name)
         print self.layer_transition
 
 
-
-    def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None):
-        # test for one pic
-        plt.imsave('images/training.jpg', training_data[0])
+    def gradient_descent(self, image, batch_size, eta, num_epochs, lmbda=None, test_data = None):
+        training_data = image[0].reshape((1,28,28))
+        label = image[1]
         activations = [([], training_data)]
         all_delta_w, all_delta_b = [], []
         stride_params, pooling_params = [], []
+        # test for one pic
+        plt.imsave('images/training.jpg', training_data[0])
+
 
         # forwardpass
         for layer in self.setup:
@@ -303,8 +304,12 @@ class Model(object):
 
         def backprop():
             # import ipdb;ipdb.set_trace()
+            for i in range(self.all_weights[0].shape[0]):
+                im =  self.all_weights[0][i].reshape((3,3))
+                plt.imsave('images/fitlers%s.jpg'%i,im)
+
             print '################# BACKPROP ####################'
-            labels = np.asarray(([1,0])).reshape((2,1))
+            # labels = np.asarray(([1,0])).reshape((2,1))
 
             # this is a pointer to the params (weights, biases) on each layer
             weight_count = len(self.all_weights) - 1
@@ -326,7 +331,7 @@ class Model(object):
                         prev_activation = activations[l+1][0],
                         z_vals = activations[l+1][1],
                         final_output = activations[l+1][2],
-                        y=labels)    # returned delta needs to be UPDATED
+                        y=label)    # returned delta needs to be UPDATED
 
                 # fc to fc layer
                 elif transition == 'fcfc':
@@ -392,15 +397,6 @@ class Model(object):
                     update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
                 # print 'AFTER UPDATE: ', self.all_weights[-1]
 
-                
-
-
-            '''
-            backprop_fc_to_fc()
-            backprop_fc_to_pool()
-            backprop_pool_conv()
-            backprop_from_conv()
-            '''
         backprop()
 
         

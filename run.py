@@ -7,6 +7,10 @@ from backprop import *
 
 import collections
 
+import mnist_loader
+# import ipdb; ipdb.set_trace()
+training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
+
 ETA = 1.5
 EPOCHS = 30
 INPUT_SHAPE = (28*28)     # for mnist
@@ -36,8 +40,9 @@ cat = 1.0 - cat/255.0
 
 ######################### TEST IMAGE ##########################
 
-training_data = cat.reshape((1,43,64))
-input_shape = training_data.shape
+# training_data = cat.reshape((1,43,64))
+x,y = training_data[0][0].shape
+input_shape = (1,x,y)
 print 'shape of input data: ', input_shape
 
 net = Model(input_shape,
@@ -46,23 +51,17 @@ net = Model(input_shape,
                     'filter_size' : 3,
                     'stride' : 1,
                     'num_filters' : 3}},
-                {'conv_layer': {
-                    'filter_size' : 4,
-                    'stride' : 1,
-                    'num_filters' : 3}},
                 {'pool_layer': {
                     'poolsize' : (2,2)}},
-                {'fc_layer': {
-                    'num_output' : 100,
-                    'classify' : False,
-                    'num_classes' : None}},
                 {'fc_layer1': {
                     'num_output' : 100,
                     'classify' : True,
-                    'num_classes' : 2}}
+                    'num_classes' : 10}}
 
             ])
-net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = None)
+
+for image in training_data[:10]:
+    net.gradient_descent(image, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = None)
 
 
 
