@@ -30,14 +30,14 @@ def backprop_pool_to_conv(delta, prev_weights, input_from_conv, max_indices, poo
 
     # backprop delta from fc to pool layer
     sp = sigmoid_prime(pool_output)
-    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
+    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calc delta on pooling layer
     delta = delta.reshape((x,y*z))
     pool_output= pool_output.reshape((x, y * z))
 
     print 'my delta on fc before pooling:' ,delta.shape
 
     depth, height, width = input_from_conv.shape
-    delta_new = np.zeros((depth, height, width)) # this should be the dims of the conv layer
+    delta_new = np.zeros((depth, height, width)) # calc the delta on the conv layer
 
     for d in range(depth):    # depth is the same for conv + pool layer
         row = 0
@@ -66,8 +66,8 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
     num_filters, depth, filter_size, filter_size = weight_filters.shape
 
     print 'conv input shape:', input_to_conv.shape
-    
-    delta_b = delta
+
+    delta_b = np.zeros((weight_filters.shape[0], 1))
     delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
     total_deltas_per_layer = delta.shape[1] * delta.shape[2]
     delta = delta.reshape((delta.shape[0], delta.shape[1] * delta.shape[2]))
@@ -80,7 +80,7 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
         for i in range(total_deltas_per_layer):
             to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
             delta_w[j] += to_conv * delta[j][i]
-
+            delta_w[j] += delta[j][i]       # not fully sure, but im just summing up the bias deltas over the conv layer
             slide += stride
 
             if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
@@ -109,7 +109,8 @@ def update_delta(delta, weight_filters, stride, input_to_conv, prev_z_vals):
 
         for i in range(total_deltas_per_layer):
             to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
-            delta_w[j] += to_conv * delta[j][i]
+            delta_new = np.dot(delta[j][i], to_conv)
+            
 
             slide += stride
 

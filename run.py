@@ -47,7 +47,7 @@ net = Model(input_shape,
                     'stride' : 1,
                     'num_filters' : 3}},
                 {'conv_layer': {
-                    'filter_size' : 3,
+                    'filter_size' : 4,
                     'stride' : 1,
                     'num_filters' : 3}},
                 {'pool_layer': {
