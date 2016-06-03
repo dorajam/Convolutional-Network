@@ -7,12 +7,12 @@ from backprop import *
 
 import collections
 
-import mnist_loader
+# import mnist_loader
 # import ipdb; ipdb.set_trace()
-training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
+# training_data, validation_data, test_data = mnist_loader.load_data_wrapper()
 
-ETA = 1.5
-EPOCHS = 30
+ETA = 3
+EPOCHS = 100
 INPUT_SHAPE = (28*28)     # for mnist
 HIDDEN_NEURONS = 30
 OUTPUT_NEURONS = 10
@@ -40,9 +40,12 @@ cat = 1.0 - cat/255.0
 
 ######################### TEST IMAGE ##########################
 
-# training_data = cat.reshape((1,43,64))
-x,y = training_data[0][0].shape
-input_shape = (1,x,y)
+training_data = cat.reshape((1,43,64))
+input_shape = training_data.shape
+label = np.asarray(([1,0])).reshape((2,1))
+training_data = (training_data, label)
+# x,y = training_data[0][0].shape
+# input_shape = (1,x,y)
 print 'shape of input data: ', input_shape
 
 net = Model(input_shape,
@@ -56,12 +59,11 @@ net = Model(input_shape,
                 {'fc_layer1': {
                     'num_output' : 100,
                     'classify' : True,
-                    'num_classes' : 10}}
+                    'num_classes' : 2}}
 
             ])
 
-for image in training_data[:10]:
-    net.gradient_descent(image, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = None)
+net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = None)
 
 
 

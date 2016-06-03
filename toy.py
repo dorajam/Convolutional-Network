@@ -57,8 +57,8 @@ class ConvLayer(object):
         self.z_values = np.zeros((self.num_filters, self.output_dim1, self.output_dim2))
         self.output = np.zeros((self.num_filters, self.output_dim1, self.output_dim2))
 
-        print 'shape of input (depth, rows,cols): ', input_shape
-        print 'shape of convolutional layer (depth, rows, cols): ', self.output.shape
+        # print 'shape of input (depth, rows,cols): ', input_shape
+        # print 'shape of convolutional layer (depth, rows, cols): ', self.output.shape
 
 
     def convolve(self, input_neurons):
@@ -90,7 +90,7 @@ class ConvLayer(object):
 
         self.z_values = self.output.reshape((self.num_filters, self.output_dim1, self.output_dim2))
         self.output = self.output.reshape((self.num_filters, self.output_dim1, self.output_dim2))
-        print 'Shape of final conv output: ', self.output.shape
+        # print 'Shape of final conv output: ', self.output.shape
         return self.output, self.z_values
 
 
@@ -108,7 +108,7 @@ class PoolingLayer(object):
 
         self.output = np.empty((self.depth, self.height_out, self.width_out))
         self.max_indices = np.empty((self.depth, self.height_out, self.width_out, 2))
-        print 'Pooling shape (depth,row,col): ', self.output.shape
+        # print 'Pooling shape (depth,row,col): ', self.output.shape
 
     def pool(self, input_image):
 
@@ -169,7 +169,7 @@ class FullyConnectedLayer(object):
         # self.weights = self.weights.reshape((self.num_output, self.depth * self.height_in * self.width_in))
         a = a.reshape((self.depth * self.height_in * self.width_in, 1))
 
-        print 'shape of w, input, b: ', self.weights.shape, a.shape, self.biases.shape
+        # print 'shape of w, input, b: ', self.weights.shape, a.shape, self.biases.shape
         self.z_values = np.dot(self.weights, a) + self.biases
         self.output = sigmoid(self.z_values)
         # self.weights = self.weights.reshape((self.num_output, self.depth, self.height_in, self.width_in))
@@ -251,6 +251,9 @@ class Model(object):
                 self.setup.append(fc)
                 self.all_weights.append(fc.weights)
                 self.all_biases.append(fc.biases)
+                if fc.classify == True:
+                    self.all_weights.append(fc.final_weights)
+                    self.all_biases.append(fc.final_biases)
 
             # store the names of the layers
             self.layer_transition[-1] = self.layer_transition[-1] + name
@@ -258,15 +261,14 @@ class Model(object):
         print self.layer_transition
 
 
-    def gradient_descent(self, image, batch_size, eta, num_epochs, lmbda=None, test_data = None):
-        training_data = image[0].reshape((1,28,28))
-        label = image[1]
-        activations = [([], training_data)]
+    def feedforward(self, data, eta, batch_size, backpropagate = True):
+        print len(data)
+        label = data[1]
+        image = data[0]
+        # image = data[0].reshape((1,28,28))
+        activations = [([], image)]
         all_delta_w, all_delta_b = [], []
         stride_params, pooling_params = [], []
-        # test for one pic
-        plt.imsave('images/training.jpg', training_data[0])
-
 
         # forwardpass
         for layer in self.setup:
@@ -275,7 +277,7 @@ class Model(object):
                 conv_output, conv_z_vals = layer.convolve(conv_input)
                 activations.append((conv_input, conv_z_vals, conv_output))
                 stride_params.append(layer.stride)
-
+                
                 # this is pretty sweet -> see the image after the convolution
                 for i in range(conv_output.shape[0]):
                     plt.imsave('images/cat_conv%s.jpg'%i, conv_output[i])
@@ -285,10 +287,10 @@ class Model(object):
                 pool_output = layer.pool(pool_input)
                 activations.append((pool_input, layer.max_indices, pool_output))
                 pooling_params.append(layer.poolsize)
-
+                
                 for i in range(pool_output.shape[0]):
                     plt.imsave('images/pool_pic%s.jpg'%i, pool_output[i])
-
+                    
             else:
                 # z values are huge, while the fc_output is tiny! large negative vals get penalized to 0!
                 fc_input = activations[-1][-1]
@@ -297,8 +299,6 @@ class Model(object):
                     activations.append((fc_input, fc_z_vals, fc_output))
                 else:
                     fc_z_vals, fc_output, final_z_vals, final_output = layer.feedforward(fc_input)
-                    self.all_weights.append(layer.final_weights)
-                    self.all_biases.append(layer.final_biases)
                     activations.append((fc_input, fc_z_vals, fc_output))
                     activations.append((fc_output, final_z_vals, final_output))
 
@@ -309,20 +309,13 @@ class Model(object):
                 plt.imsave('images/fitlers%s.jpg'%i,im)
 
             print '################# BACKPROP ####################'
-            # labels = np.asarray(([1,0])).reshape((2,1))
 
             # this is a pointer to the params (weights, biases) on each layer
             weight_count = len(self.all_weights) - 1
 
-            def update(num, eta, weights, biases, dw, db, batch_size=1):
-                print weights.shape, dw.shape, biases.shape,db.shape
-                self.all_weights[num] = weights - eta * dw/batch_size
-                self.all_biases[num] = biases - eta * db
-
-
             for l in range(len(self.layer_transition)-1,-1, -1):
                 transition = self.layer_transition[l]
-                print 'This is the %dth layer'%(l+1)
+                # print 'This is the %dth layer'%(l+1)
 
                 # final layer
                 if transition == 'fc':
@@ -332,7 +325,7 @@ class Model(object):
                         z_vals = activations[l+1][1],
                         final_output = activations[l+1][2],
                         y=label)    # returned delta needs to be UPDATED
-
+                                    
                 # fc to fc layer
                 elif transition == 'fcfc':
                     # calc delta on the first final layer
@@ -342,7 +335,7 @@ class Model(object):
                         prev_activations = activations[l+1][0],
                         z_vals = activations[l+1][1])
                     weight_count -= 1     # set pointer to the weights on prev layer
-
+                                    
                 # fc to pool layer
                 elif transition == 'poolfc':
                     # calc delta on the fc layer
@@ -390,17 +383,60 @@ class Model(object):
                         input_to_conv = activations[l+1][0],
                         prev_z_vals = activations[l+1][1])
                     stride_params.pop()
-                    update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
+                    self.update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
 
                 if (transition != 'convpool') and (transition !='convconv') and (transition !='conv'):
-                    print 'delta,dw, weights shape: ',delta.shape, dw.shape, self.all_weights[weight_count].shape
-                    update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
-                # print 'AFTER UPDATE: ', self.all_weights[-1]
+                    # print 'delta,dw, weights shape: ',delta.shape, dw.shape, self.all_weights[weight_count].shape
+                    self.update(weight_count, eta, self.all_weights[weight_count], self.all_biases[weight_count], dw,db, batch_size = 1)
 
-        backprop()
+        if backpropagate == True:
+            backprop()
+        else:
+            return activations[-1][-1]
+      
+    def gradient_descent(self, training_data, batch_size, eta, num_epochs, lmbda=None, test_data = None):
+        training_size = len(training_data)
+        if test_data: n_test = len(test_data)
 
-        
+        for epoch in xrange(num_epochs):
+            print "Starting epochs"
+            start = time.time()
+            # random.shuffle(training_data)
+            # batches = [training_data[k:k + batch_size] for k in xrange(0, training_size, batch_size)]
+            # batches = training_data
 
+            # for batch in batches:
+            # for image_tuple in training_data:
+            for i in range(1):
+                image_tuple = training_data
+                print image_tuple[0].shape
+                # test for one pic
+                # plt.imsave('images/training.jpg', image_tuple[0])
+                
+                self.feedforward(image_tuple, eta, batch_size, backpropagate=True)
+            if test_data:
+                print "################## VALIDATE #################"
+                print "Epoch {0}: {1} / {2}".format(
+                    epoch, self.evaluate(test_data), n_test)
+                print "Epoch {0} complete".format(epoch)
+                # time
+                timer = time.time() - start
+                print "Estimated time: ", timer
+
+    def update(self,num, eta, weights, biases, dw, db, batch_size=1):
+        # print weights.shape, dw.shape, biases.shape,db.shape
+        print num
+        if num == len(self.all_weights)-1:
+            weights = weights.transpose()
+            self.all_weights[num] = (weights - eta * dw/batch_size).transpose()
+        else:
+            self.all_weights[num] = weights - eta * dw/batch_size
+            self.all_biases[num] = biases - eta * db
+
+
+    def evaluate(self,data):
+        test_results = [(np.argmax(self.feedforward((x,y),None,None, backpropagate=False)),y) for x, y in data]
+        return sum(int(x == y) for x, y in test_results) 
 
 # helper functions
 ###############################################################

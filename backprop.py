@@ -62,10 +62,10 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
      - 
     '''
     # this is 4 dims: num_filters, depth, height, width
-    print 'filter dimensions: ', weight_filters.shape
+    # print 'filter dimensions: ', weight_filters.shape
     num_filters, depth, filter_size, filter_size = weight_filters.shape
 
-    print 'conv input shape:', input_to_conv.shape
+    # print 'conv input shape:', input_to_conv.shape
 
     delta_b = np.zeros((weight_filters.shape[0], 1))
     delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
@@ -92,10 +92,10 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
 
 def update_delta(delta, weight_filters, stride, input_to_conv, prev_z_vals):
     # this is 4 dims: num_filters, depth, height, width
-    print 'filter dimensions: ', weight_filters.shape
+    # print 'filter dimensions: ', weight_filters.shape
     num_filters, depth, filter_size, filter_size = weight_filters.shape
 
-    print 'conv input shape:', input_to_conv.shape
+    # print 'conv input shape:', input_to_conv.shape
     
     delta_b = delta
     delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
@@ -125,8 +125,8 @@ def update_delta(delta, weight_filters, stride, input_to_conv, prev_z_vals):
 
 def calc_gradients(delta, prev_weights, prev_activations, z_vals):
     sp = sigmoid_prime(z_vals)
-    print 'w,d,z_vals: ', prev_weights.transpose().shape, delta.shape, sp.shape
-    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
+    # print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape
+    delta = np.dot(prev_weights, delta) * sp         # backprop to calculate error (delta) at layer - 1
     delta_b = delta
     delta_w = np.dot(delta, prev_activations.transpose())
     return delta_b, delta_w, delta
