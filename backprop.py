@@ -86,47 +86,12 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
             if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
                 slide = 0
                 row += stride
-
-    # update biases ?! return delta to conv 
     return delta_b, delta_w
-
-def update_delta(delta, weight_filters, stride, input_to_conv, prev_z_vals):
-    # this is 4 dims: num_filters, depth, height, width
-    # print 'filter dimensions: ', weight_filters.shape
-    num_filters, depth, filter_size, filter_size = weight_filters.shape
-
-    # print 'conv input shape:', input_to_conv.shape
-    
-    delta_b = delta
-    delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
-    total_deltas_per_layer = delta.shape[1] * delta.shape[2]
-    delta = delta.reshape((delta.shape[0], delta.shape[1] * delta.shape[2]))
-    new_delta = np.zeros((input_to_conv.shape))
-
-    for j in range(num_filters):
-        slide = 0
-        row = 0
-
-        for i in range(total_deltas_per_layer):
-            to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
-            delta_new = np.dot(delta[j][i], to_conv)
-            
-
-            slide += stride
-
-            if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
-                slide = 0
-                row += stride
-
-    # update biases ?! return delta to conv 
-    return delta_b, delta_w
-
-
 
 def calc_gradients(delta, prev_weights, prev_activations, z_vals):
     sp = sigmoid_prime(z_vals)
-    # print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape
-    delta = np.dot(prev_weights, delta) * sp         # backprop to calculate error (delta) at layer - 1
+    print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape
+    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
     delta_b = delta
     delta_w = np.dot(delta, prev_activations.transpose())
     return delta_b, delta_w, delta
