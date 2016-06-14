@@ -9,10 +9,11 @@ import numpy as np
 ##############################################################
 # I. Go from last layer to FC layer
 def backprop_final_to_fc(prev_activation, z_vals, final_output, y):
-    # print 'prev_act: ', prev_activation.shape,'z_vals: ', z_vals.shape, 'final_output: ', final_output.shape,'labels: ', y
+    # print 'prev_act: ', prev_activation.shape,'z_vals: ', z_vals.shape
     delta = (final_output - y) * sigmoid_prime(z_vals)
     delta_b = delta
     delta_w = np.dot(delta, prev_activation.transpose())
+    print "delta_w shape in FC to inp layer:", delta_w.shape
     return delta_b, delta_w, delta
 
 def backprop_fc_to_pool(delta, prev_weights, prev_activations, z_vals):
@@ -90,11 +91,26 @@ def backprop_conv_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_v
 
 def calc_gradients(delta, prev_weights, prev_activations, z_vals):
     sp = sigmoid_prime(z_vals)
-    print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape
+    # print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape, prev_activations.shape
     delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
+
     delta_b = delta
-    delta_w = np.dot(delta, prev_activations.transpose())
+    dim1, dim2 = prev_activations.shape
+    prev_activations = prev_activations.reshape((1,dim1*dim2))
+    delta_w = np.dot(delta, prev_activations)
     return delta_b, delta_w, delta
+
+def backprop_fc_to_input(delta, prev_weights, prev_activations, z_vals):
+    sp = sigmoid_prime(z_vals)
+    # print 'w,d,z_vals: ', prev_weights.shape, delta.shape, sp.shape, prev_activations.shape
+    delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calculate error (delta) at layer - 1
+
+    delta_b = delta
+    depth, dim1, dim2 = prev_activations.shape
+    prev_activations = prev_activations.reshape((1,depth*dim1*dim2))
+    delta_w = np.dot(delta, prev_activations)
+    return delta_b, delta_w, delta
+
 
 def max_prime(res, delta, tile_to_pool):
     dim1, dim2 = tile_to_pool.shape
