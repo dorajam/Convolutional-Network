@@ -24,8 +24,8 @@ import matplotlib.pyplot as plt
 ######################### TEST IMAGE ##########################
 
 
-ETA = 3
-EPOCHS = 100
+ETA = 1.5
+EPOCHS = 30
 INPUT_SHAPE = (28*28)     # for mnist
 BATCH_SIZE = 10
 LMBDA = 0.1
@@ -66,11 +66,17 @@ print 'shape of input data: ', input_shape
 
 
 net = Model(input_shape,
-            layers = [
+            layer_config = [
+                {'conv_layer': {
+                    'filter_size' : 5,
+                    'stride' : 1,
+                    'num_filters' : 20}},
+                {'pool_layer': {
+                    'poolsize' : (2,2)}},
                 {'fc_layer': {
-                    'num_output' : 100}},
+                    'num_output' : 30}},
                 {'final_layer': {
                     'num_classes' : 10}}
             ])
 
-net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = test_data[:10])
+net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = test_data)
