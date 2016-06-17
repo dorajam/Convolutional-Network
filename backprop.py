@@ -27,6 +27,8 @@ def backprop_1d_to_3d(delta, prev_weights, prev_activations, z_vals):
     depth, dim1, dim2 = prev_activations.shape
     prev_activations = prev_activations.reshape((1, depth*dim1*dim2))
     delta_w = np.dot(delta, prev_activations)
+    delta_w = delta_w.reshape((delta.shape[0], depth,dim1,dim2))
+
     return delta_b, delta_w, delta
 
     
@@ -44,10 +46,8 @@ def backprop_pool_to_conv(delta, prev_weights, input_from_conv, max_indices, poo
     sp = sigmoid_prime(pool_output)
     delta = np.dot(prev_weights.transpose(), delta) * sp         # backprop to calc delta on pooling layer
     delta = delta.reshape((x,y*z))
-    pool_output= pool_output.reshape((x, y * z))
-
-    print 'my delta on fc before pooling:' ,delta.shape
-
+    pool_output = pool_output.reshape((x, y * z))
+    
     depth, height, width = input_from_conv.shape
     delta_new = np.zeros((depth, height, width)) # calc the delta on the conv layer
 
@@ -71,31 +71,29 @@ def backprop_pool_to_conv(delta, prev_weights, input_from_conv, max_indices, poo
 def backprop_to_conv(delta, weight_filters, stride, input_to_conv, prev_z_vals):
     '''weights passed in are the ones between pooling and fc layer'''
 
-    print 'weight filter', weight_filters.shape
-    print 'input shape', input_to_conv.shape
+    # print 'weight filter, delta shape', weight_filters.shape, delta.shape
+    # print 'input shape', input_to_conv.shape
     num_filters, depth, filter_size, filter_size = weight_filters.shape
 
     delta_b = np.zeros((num_filters, 1))
     delta_w = np.zeros((weight_filters.shape))            # you need to change the dims of weights
 
-    print delta_w.shape, delta_b.shape, delta.shape
-    total_deltas_per_layer = (delta.shape[1] -filter_size+1) * (delta.shape[2]-filter_size+1)
-    delta = delta.reshape((delta.shape[0], delta.shape[1], delta.shape[2]))
+    # print delta_w.shape, delta_b.shape, delta.shape
+    total_deltas_per_layer = (delta.shape[1]) * (delta.shape[2])
+    # print 'total_deltas_per_layer', total_deltas_per_layer
+    delta = delta.reshape((delta.shape[0], delta.shape[1] * delta.shape[2]))
 
     for j in range(num_filters):
         slide = 0
         row = 0
 
         for i in range(total_deltas_per_layer):
-            to_conv = input_to_conv[:, row:filter_size+row, slide:filter_size + slide]
-            if to_conv.shape != (1,5,5):
-                print to_conv.shape, i
-                import ipdb;ipdb.set_trace()
+            to_conv = input_to_conv[:,row:filter_size+row, slide:filter_size + slide]
             delta_w[j] += to_conv * delta[j][i]
             delta_b[j] += delta[j][i]       # not fully sure, but im just summing up the bias deltas over the conv layer
             slide += stride
 
-            if (filter_size + slide)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
+            if (slide + filter_size)-stride >= input_to_conv.shape[2]:    # wrap indices at the end of each row
                 slide = 0
                 row+=stride
 

@@ -50,21 +50,6 @@ x,y = training_data[0][0].shape
 input_shape = (1,x,y)
 print 'shape of input data: ', input_shape
 
-# net = Model(input_shape,
-#             layers = [
-#                 {'conv_layer': {
-#                     'filter_size' : 5,
-#                     'stride' : 1,
-#                     'num_filters' : 20}},
-#                 {'pool_layer': {
-#                     'poolsize' : (2,2)}},
-#                 {'fc_layer': {
-#                     'num_output' : 100}},
-#                 {'final_layer': {
-#                     'num_classes' : 10}}
-#             ])
-
-
 net = Model(input_shape,
             layer_config = [
                 {'conv_layer': {
@@ -79,4 +64,4 @@ net = Model(input_shape,
                     'num_classes' : 10}}
             ])
 
-net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = test_data)
+net.gradient_descent(training_data, BATCH_SIZE, ETA, EPOCHS, LMBDA, test_data = test_data[:20])
