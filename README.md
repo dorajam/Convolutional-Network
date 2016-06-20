@@ -17,13 +17,13 @@ The purpose of this project was to understand the full architecture of a conv ne
 ###### Training:    
 - use ```run.py``` to start the training
 - see the output images on each convolutional layer + pooling layer while training
-- see the filters being trained ! They should slowly resemble the festures in your images
+- see the filters being trained ! They should slowly resemble the feqtures in your images
 
 
 #### TO IMPROVE:
-Even though you can get some insights of the learning that's happening during the training, the network is extremely slow!
+Even though you can get some insights into the learning during training, the network is extremely slow!
 This is mainly because it was never designed and optimized to process large volume of images.
-It would be great to rewrite this in Theano on Tensorflow
+It would be great to rewrite this in Theano or Tensorflow
 
 
 #### FURTHER IDEAS:
